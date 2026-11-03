@@ -117,6 +117,9 @@ jobs:
           cd aurora
           git checkout --detach "${AURORA_COMMIT}"
           git submodule update --init --recursive
+          cd ..
+          python3 patches/add_pyrowave_toggle.py
+          cd aurora
           printf '\n' >> cmake/PackageWebOS.cmake
           cat >> cmake/PackageWebOS.cmake <<'CMAKE'
           install(DIRECTORY "${CMAKE_SOURCE_DIR}/../stage/lib/" DESTINATION lib/pyrowave USE_SOURCE_PERMISSIONS)
