@@ -64,6 +64,43 @@ jobs:
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
           test -f stage/lib/libpyrowave-shared.so.0.6.0
 
+      - name: Download webOS packaging CLI
+        uses: robinraju/release-downloader@v1.9
+        with:
+          repository: webosbrew/ares-cli-rs
+          latest: true
+          fileName: "ares-package_*_amd64.deb"
+          out-file-path: temp
+
+      - name: Build test app with bundled decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y ./temp/*.deb
+          source UPSTREAM.lock
+          git clone --filter=blob:none https://github.com/${AURORA_REPO}.git aurora
+          cd aurora
+          git checkout --detach "${AURORA_COMMIT}"
+          git submodule update --init --recursive
+          cat >> cmake/PackageWebOS.cmake <<'CMAKE'
+          install(DIRECTORY "${CMAKE_SOURCE_DIR}/../stage/lib/" DESTINATION lib/pyrowave USE_SOURCE_PERMISSIONS)
+          install(PROGRAMS "${CMAKE_SOURCE_DIR}/../stage/decoder_device_probe" DESTINATION bin)
+          CMAKE
+          export CI=true
+          export TOOLCHAIN_FILE=/tmp/arm-webos-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake
+          ./scripts/webos/easy_build.sh \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWEBOS_APPINFO_ID=com.pyrowave.lgc5.test \
+            -DWEBOS_APPINFO_TITLE="LG C5 PyroWave Test"
+          test -n "$(find dist -maxdepth 1 -name '*.ipk' -print -quit)"
+
+      - name: Upload test app IPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgc5-pyrowave-test-ipk
+          path: aurora/dist/*.ipk
+          if-no-files-found: error
+
       - name: Upload ARM32 decoder and test executable
         uses: actions/upload-artifact@v4
         with:
