@@ -1,0 +1,66 @@
+name: Build webOS baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout pinned clean Aurora
+        shell: bash
+        run: |
+          set -euo pipefail
+          source UPSTREAM.lock
+          git clone --filter=blob:none https://github.com/${AURORA_REPO}.git aurora
+          cd aurora
+          git checkout --detach "${AURORA_COMMIT}"
+          git submodule update --init --recursive
+
+      - name: Install webOS packaging tools
+        uses: robinraju/release-downloader@v1.9
+        with:
+          repository: webosbrew/ares-cli-rs
+          latest: true
+          fileName: "ares-package_*_amd64.deb"
+          out-file-path: temp
+
+      - name: Install packaging tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./temp/*.deb cmake
+
+      - name: Download webOS ARM32 SDK
+        uses: robinraju/release-downloader@v1.12
+        with:
+          repository: openlgtv/buildroot-nc4
+          tag: webos-a38c582
+          fileName: arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz
+          out-file-path: /tmp
+          extract: true
+
+      - name: Relocate SDK and build isolated package
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/arm-webos-linux-gnueabi_sdk-buildroot/relocate-sdk.sh
+          cd aurora
+          export CI=true
+          export TOOLCHAIN_FILE=/tmp/arm-webos-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake
+          ./scripts/webos/easy_build.sh \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWEBOS_APPINFO_ID=com.pyrowave.lgc5.test \
+            -DWEBOS_APPINFO_TITLE="LG C5 Test"
+          test -n "$(find dist -maxdepth 1 -name '*.ipk' -print -quit)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lgc5-baseline-ipk
+          path: aurora/dist/*.ipk
+          if-no-files-found: error
