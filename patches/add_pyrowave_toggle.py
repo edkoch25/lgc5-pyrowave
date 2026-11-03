@@ -29,7 +29,7 @@ replace_once("src/app/ui/settings/panes/experimental.pane.c",
              '    lv_obj_t *pyrowave = pref_checkbox(view, "PyroWave Vulkan decoder (experimental)",\n'
              '                                         &app_configuration->pyrowave_enabled, false);\n'
              '    lv_obj_add_event_cb(pyrowave, reconnect_cb, LV_EVENT_VALUE_CHANGED, pane);\n'
-             '    pref_desc_label(view, "Experimental: restart stream to apply. Native LG decoder is the safe fallback.", false);')
+             '    pref_desc_label(view, "Decoder integration is not yet available; native LG decoding remains active.", false);')
 replace_once("src/app/stream/video/session_video.c",
              '    SS4S_VideoInfo info;',
              '    if (app_configuration && app_configuration->pyrowave_enabled) {\n'
