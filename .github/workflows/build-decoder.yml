@@ -25,6 +25,34 @@ jobs:
           git checkout --detach "${PYROWAVE_COMMIT}"
           bash checkout_granite.sh
           git submodule status
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("third_party/granite/vulkan/context.cpp")
+          if not path.exists():
+              matches = list(Path(".").rglob("vulkan/context.cpp"))
+              assert len(matches) == 1, matches
+              path = matches[0]
+          source = path.read_text()
+          needle = 'addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(module, "vkGetInstanceProcAddr"));'
+          assert source.count(needle) == 1
+          replacement = needle + '''
+          // LG webOS Mali exposes the Vulkan ICD interface, not the loader interface.
+          if (!addr)
+          {
+              using Negotiate = int32_t (*)(uint32_t *);
+              auto negotiate = reinterpret_cast<Negotiate>(dlsym(module, "vk_icdNegotiateLoaderICDInterfaceVersion"));
+              if (negotiate)
+              {
+                  uint32_t interface_version = 5;
+                  if (negotiate(&interface_version) != 0)
+                      return false;
+              }
+              addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(module, "vk_icdGetInstanceProcAddr"));
+          }
+          '''
+          path.write_text(source.replace(needle, replacement))
+          print("Patched Granite Vulkan loader:", path)
+          PY
 
       - name: Download webOS ARM32 toolchain
         uses: robinraju/release-downloader@v1.12
