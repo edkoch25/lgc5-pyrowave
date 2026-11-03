@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: development/pyrowave-decoder
 
       - name: Fetch pinned PyroWave and Granite
         shell: bash
@@ -53,7 +55,9 @@ jobs:
             -DPYROWAVE_UTILS=OFF \
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
           cmake --build build/pyrowave --target pyrowave-shared -j 2
-          cmake --install build/pyrowave --component Unspecified
+          mkdir -p stage/lib
+          cp -a build/pyrowave/libpyrowave-shared.so* stage/lib/
+          cp pyrowave/pyrowave.h stage/
           "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
             tests/decoder_device_probe.c -ldl -o stage/decoder_device_probe
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe
