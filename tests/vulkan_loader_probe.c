@@ -25,6 +25,7 @@ typedef struct {
     uint32_t apiVersion;
 } VkApplicationInfo;
 typedef void *(*PFN_vkGetInstanceProcAddr)(void *, const char *);
+typedef VkResult (*PFN_vkICDNegotiate)(uint32_t *);
 typedef VkResult (*PFN_vkEnumerateInstanceVersion)(uint32_t *);
 typedef VkResult (*PFN_vkCreateInstance)(const VkInstanceCreateInfo *, const void *, void **);
 typedef VkResult (*PFN_vkEnumeratePhysicalDevices)(void *, uint32_t *, void *);
@@ -35,11 +36,16 @@ int main(int argc, char **argv) {
     void *lib = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!lib) { fprintf(stderr, "dlopen(%s): %s\n", path, dlerror()); return 1; }
     PFN_vkGetInstanceProcAddr get = (PFN_vkGetInstanceProcAddr)dlsym(lib, "vkGetInstanceProcAddr");
-    printf("driver=%s vkGetInstanceProcAddr=%s\n", path, get ? "YES" : "NO");
+    PFN_vkGetInstanceProcAddr icd = (PFN_vkGetInstanceProcAddr)dlsym(lib, "vk_icdGetInstanceProcAddr");
+    PFN_vkICDNegotiate negotiate = (PFN_vkICDNegotiate)dlsym(lib, "vk_icdNegotiateLoaderICDInterfaceVersion");
+    void *directCreate = dlsym(lib, "vkCreateInstance");
+    printf("driver=%s standard_GIPA=%s ICD_GIPA=%s ICD_negotiate=%s direct_create=%s\n", path, get ? "YES" : "NO", icd ? "YES" : "NO", negotiate ? "YES" : "NO", directCreate ? "YES" : "NO");
+    if (negotiate) { uint32_t interfaceVersion = 5; VkResult nrc = negotiate(&interfaceVersion); printf("ICD negotiation result=%d interface_version=%u\n", nrc, interfaceVersion); }
+    if (!get) get = icd;
     if (!get) { dlclose(lib); return 2; }
     PFN_vkEnumerateInstanceVersion version = (PFN_vkEnumerateInstanceVersion)get(NULL, "vkEnumerateInstanceVersion");
     uint32_t api = 0;
-    if (version) printf("vkEnumerateInstanceVersion result=%d version=%u.%u.%u\n", version(&api), api >> 22, (api >> 12) & 1023, api & 4095);
+    if (version) { VkResult vrc = version(&api); printf("vkEnumerateInstanceVersion result=%d version=%u.%u.%u\n", vrc, api >> 22, (api >> 12) & 1023, api & 4095); }
     PFN_vkCreateInstance create = (PFN_vkCreateInstance)get(NULL, "vkCreateInstance");
     printf("vkCreateInstance=%s\n", create ? "YES" : "NO");
     if (!create) { dlclose(lib); return 3; }
