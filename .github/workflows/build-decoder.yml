@@ -58,6 +58,11 @@ jobs:
           mkdir -p stage/lib
           cp -a build/pyrowave/libpyrowave-shared.so* stage/lib/
           cp pyrowave/pyrowave.h stage/
+          CXX_RUNTIME="$("${SDK}/bin/arm-webos-linux-gnueabi-g++" -print-file-name=libstdc++.so.6)"
+          test -f "$CXX_RUNTIME"
+          cp -L "$CXX_RUNTIME" stage/lib/libstdc++.so.6
+          file stage/lib/libstdc++.so.6
+          strings stage/lib/libstdc++.so.6 | grep -Fx GLIBCXX_3.4.30
           "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
             tests/decoder_device_probe.c -ldl -o stage/decoder_device_probe
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe
@@ -86,6 +91,7 @@ jobs:
           cat >> cmake/PackageWebOS.cmake <<'CMAKE'
           install(DIRECTORY "${CMAKE_SOURCE_DIR}/../stage/lib/" DESTINATION lib/pyrowave USE_SOURCE_PERMISSIONS)
           install(PROGRAMS "${CMAKE_SOURCE_DIR}/../stage/decoder_device_probe" DESTINATION bin)
+          install(FILES "${CMAKE_SOURCE_DIR}/../stage/lib/libstdc++.so.6" DESTINATION lib/pyrowave)
           CMAKE
           export CI=true
           export TOOLCHAIN_FILE=/tmp/arm-webos-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake
