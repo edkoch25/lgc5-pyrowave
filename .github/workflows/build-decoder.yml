@@ -1,0 +1,72 @@
+name: Build PyroWave ARM32 decoder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decoder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development/pyrowave-decoder
+
+      - name: Fetch pinned PyroWave and Granite
+        shell: bash
+        run: |
+          set -euo pipefail
+          source UPSTREAM.lock
+          git clone https://github.com/${PYROWAVE_REPO}.git pyrowave
+          cd pyrowave
+          git checkout --detach "${PYROWAVE_COMMIT}"
+          bash checkout_granite.sh
+          git submodule status
+
+      - name: Download webOS ARM32 toolchain
+        uses: robinraju/release-downloader@v1.12
+        with:
+          repository: openlgtv/buildroot-nc4
+          tag: webos-a38c582
+          fileName: arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz
+          out-file-path: /tmp
+          extract: true
+
+      - name: Configure and build decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+          /tmp/arm-webos-linux-gnueabi_sdk-buildroot/relocate-sdk.sh
+          SDK=/tmp/arm-webos-linux-gnueabi_sdk-buildroot
+          cmake -S pyrowave -B build/pyrowave -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="${SDK}/share/buildroot/toolchainfile.cmake" \
+            -DCMAKE_C_COMPILER="${SDK}/bin/arm-webos-linux-gnueabi-gcc" \
+            -DCMAKE_CXX_COMPILER="${SDK}/bin/arm-webos-linux-gnueabi-g++" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/stage" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_INSTALL_INCLUDEDIR=include \
+            -DPYROWAVE_DEVEL=OFF \
+            -DPYROWAVE_UTILS=OFF \
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+          cmake --build build/pyrowave --target pyrowave-shared -j 2
+          mkdir -p stage/lib
+          cp -a build/pyrowave/libpyrowave-shared.so* stage/lib/
+          cp pyrowave/pyrowave.h stage/
+          "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
+            tests/decoder_device_probe.c -ldl -o stage/decoder_device_probe
+          file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe
+          readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
+          test -f stage/lib/libpyrowave-shared.so.0.0.0
+
+      - name: Upload ARM32 decoder and test executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgc5-pyrowave-decoder-arm32
+          path: stage/
+          if-no-files-found: error
