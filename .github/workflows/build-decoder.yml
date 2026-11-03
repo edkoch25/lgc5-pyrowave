@@ -96,7 +96,8 @@ jobs:
           "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
             tests/vulkan_loader_probe.c -ldl -o stage/vulkan_loader_probe
           "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -std=c11 -O2 -Wall -Wextra \
-            tests/pyrowave_frame_probe.c -ldl -o stage/pyrowave_frame_probe\n          file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe stage/pyrowave_frame_probe
+            tests/pyrowave_frame_probe.c -ldl -o stage/pyrowave_frame_probe
+          file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe stage/pyrowave_frame_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
           test -f stage/lib/libpyrowave-shared.so.0.6.0
 
