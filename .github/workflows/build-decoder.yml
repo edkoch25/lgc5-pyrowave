@@ -65,7 +65,9 @@ jobs:
           strings stage/lib/libstdc++.so.6 | grep -Fx GLIBCXX_3.4.30
           "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
             tests/decoder_device_probe.c -ldl -o stage/decoder_device_probe
-          file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe
+          "${SDK}/bin/arm-webos-linux-gnueabi-gcc" -O2 -Wall -Wextra \
+            tests/vulkan_loader_probe.c -ldl -o stage/vulkan_loader_probe
+          file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
           test -f stage/lib/libpyrowave-shared.so.0.6.0
 
@@ -90,7 +92,7 @@ jobs:
           printf '\n' >> cmake/PackageWebOS.cmake
           cat >> cmake/PackageWebOS.cmake <<'CMAKE'
           install(DIRECTORY "${CMAKE_SOURCE_DIR}/../stage/lib/" DESTINATION lib/pyrowave USE_SOURCE_PERMISSIONS)
-          install(PROGRAMS "${CMAKE_SOURCE_DIR}/../stage/decoder_device_probe" DESTINATION bin)
+          install(PROGRAMS "${CMAKE_SOURCE_DIR}/../stage/decoder_device_probe" "${CMAKE_SOURCE_DIR}/../stage/vulkan_loader_probe" DESTINATION bin)
           install(FILES "${CMAKE_SOURCE_DIR}/../stage/lib/libstdc++.so.6" DESTINATION lib/pyrowave)
           CMAKE
           export CI=true
