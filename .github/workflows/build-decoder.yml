@@ -62,7 +62,7 @@ jobs:
             tests/decoder_device_probe.c -ldl -o stage/decoder_device_probe
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
-          test -f stage/lib/libpyrowave-shared.so.0.0.0
+          test -f stage/lib/libpyrowave-shared.so.0.6.0
 
       - name: Upload ARM32 decoder and test executable
         uses: actions/upload-artifact@v4
