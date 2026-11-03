@@ -55,7 +55,8 @@ int main(int argc, char **argv) {
     if(!(head&0x80000000u)||((head&0x3fff)+1)!=(uint32_t)w||
        (((head>>14)&0x3fff)+1)!=(uint32_t)h||((seq>>24)&3)!=0||((seq>>26)&1)!=0)
         valid=false;
-    if(valid && push(decoder,data,8)!=0) valid=false;\n    while(valid&&at<(size_t)n) {
+    if(valid && push(decoder,data,8)!=0) valid=false;
+    while(valid&&at<(size_t)n) {
         if((size_t)n-at<8){valid=false;break;}
         uint32_t a=le32(data+at),b=le32(data+at+4);
         if(a==0xffffffffu){
