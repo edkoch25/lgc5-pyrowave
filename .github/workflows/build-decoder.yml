@@ -68,6 +68,51 @@ jobs:
           '''
           path.write_text(source.replace(needle, replacement))
           print("Patched Granite Vulkan loader:", path)
+          # Trace the exact PYROWAVE_ERROR_NO_VULKAN return path in the pinned C API.
+          api = Path("pyrowave_c.cpp")
+          code = api.read_text()
+          start = code.index("pyrowave_result pyrowave_create_device_by_compat(")
+          end = code.index("pyrowave_result pyrowave_create_default_device(", start)
+          body = code[start:end]
+          assert body.count("return PYROWAVE_ERROR_NO_VULKAN;") == 4
+          assert body.count("if (!Context::init_loader(nullptr))") == 1
+          assert body.count("if (!dev->context.init_instance(nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))") == 1
+          assert body.count("if (!selected_gpu)") == 1
+          prefix = """
+          static void lgc5_pw_vulkan_trace(const char *stage, int value)
+          {
+              FILE *f = fopen("/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/cache/pyrowave-diag.log", "a");
+              if (!f) return;
+              fprintf(f, "pyrowave Vulkan: %s value=%d\\n", stage, value);
+              fclose(f);
+          }
+          """
+          # Do not rely on Granite's logger: PyroWave explicitly disables it.
+          code = '#include <stdio.h>\\n' + code
+          body = body.replace("return PYROWAVE_ERROR_NO_VULKAN;",
+                              'lgc5_pw_vulkan_trace("NO_VULKAN return", __LINE__); return PYROWAVE_ERROR_NO_VULKAN;')
+          body = body.replace("if (!Context::init_loader(nullptr))",
+                              'lgc5_pw_vulkan_trace("loader begin", 0);\\n\\tif (!Context::init_loader(nullptr))')
+          body = body.replace("auto *dev = new pyrowave_device_opaque();",
+                              'lgc5_pw_vulkan_trace("loader ready", 1);\\n\\tauto *dev = new pyrowave_device_opaque();')
+          body = body.replace("if (!dev->context.init_instance(nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))",
+                              'lgc5_pw_vulkan_trace("instance begin", 0);\\n\\tif (!dev->context.init_instance(nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))')
+          body = body.replace("uint32_t count;",
+                              'lgc5_pw_vulkan_trace("instance ready", 1);\\n\\tuint32_t count;')
+          body = body.replace("std::vector<VkPhysicalDevice> gpus(count);",
+                              'lgc5_pw_vulkan_trace("GPU count", (int)count);\\n\\tstd::vector<VkPhysicalDevice> gpus(count);')
+          body = body.replace("if (props.apiVersion < VK_API_VERSION_1_2)",
+                              'lgc5_pw_vulkan_trace("GPU apiVersion", (int)props.apiVersion);\\n\\t\tif (props.apiVersion < VK_API_VERSION_1_2)')
+          body = body.replace("if (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))",
+                              'lgc5_pw_vulkan_trace("GPU init_device begin", 0);\\n\\t\tif (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))')
+          body = body.replace("selected_gpu = gpu;",
+                              'lgc5_pw_vulkan_trace("GPU init_device succeeded", 1);\\n\\t\t\tselected_gpu = gpu;')
+          body = body.replace("if (!selected_gpu)",
+                              'lgc5_pw_vulkan_trace("GPU init_device loop ended", selected_gpu ? 1 : 0);\\n\\tif (!selected_gpu)')
+          assert 'GPU init_device begin' in body and 'GPU apiVersion' in body
+          code = code[:start] + prefix + body + code[end:]
+          api.write_text(code)
+          print("Instrumented pinned PyroWave C API Vulkan initialization:", api)
           PY
 
       - name: Download webOS ARM32 toolchain
