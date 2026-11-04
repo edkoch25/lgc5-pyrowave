@@ -27,13 +27,14 @@ static inline bool lgc5_pw_sdl_open(lgc5_pw_sdl_renderer *p,unsigned width,unsig
     p->window=SDL_CreateWindow("PyroWave video",SDL_WINDOWPOS_CENTERED,
                                 SDL_WINDOWPOS_CENTERED,(int)width,(int)height,
                                 SDL_WINDOW_SHOWN|SDL_WINDOW_FULLSCREEN_DESKTOP);
-    if (!p->window) goto fail;
+    if (!p->window) { lgc5_pw_diag("SDL window failed: %s",SDL_GetError()); goto fail; }
     p->renderer=SDL_CreateRenderer(p->window,-1,SDL_RENDERER_ACCELERATED);
-    if (!p->renderer) goto fail;
+    if (!p->renderer) { lgc5_pw_diag("SDL renderer failed: %s",SDL_GetError()); goto fail; }
     p->texture=SDL_CreateTexture(p->renderer,SDL_PIXELFORMAT_IYUV,
                                  SDL_TEXTUREACCESS_STREAMING,(int)width,(int)height);
-    if (!p->texture) goto fail;
+    if (!p->texture) { lgc5_pw_diag("SDL texture failed: %s",SDL_GetError()); goto fail; }
     p->width=width; p->height=height;
+    lgc5_pw_diag("SDL renderer ready");
     return true;
 fail:
     lgc5_pw_sdl_close(p);

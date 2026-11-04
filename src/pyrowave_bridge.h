@@ -3,6 +3,7 @@
 #ifndef LGC5_PYROWAVE_BRIDGE_H
 #define LGC5_PYROWAVE_BRIDGE_H
 #include "pyrowave_ingest.h"
+#include "pyrowave_diag.h"
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -61,7 +62,8 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
         b->library=dlopen(paths[i],RTLD_NOW|RTLD_LOCAL);
         if (b->library) break;
     }
-    if (!b->library) { fprintf(stderr, "PyroWave: dlopen failed: %s\n", dlerror()); goto fail; }
+    if (!b->library) { lgc5_pw_diag("dlopen failed: %s",dlerror()); goto fail; }
+    lgc5_pw_diag("decoder library loaded");
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
     *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
@@ -72,15 +74,20 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     *(void **)(&b->ingress.push)=dlsym(b->library,"pyrowave_decoder_push_packet");
     *(void **)(&b->ingress.ready)=dlsym(b->library,"pyrowave_decoder_decode_is_ready");
     *(void **)(&b->decode_cpu)=dlsym(b->library,"pyrowave_decoder_decode_cpu_buffer_synchronous");
+    lgc5_pw_diag("decoder symbols: %s",(b->api_version && b->create_device && b->create_decoder && b->decode_cpu) ? "core present" : "core missing");
     if (!b->api_version || !b->create_device || !b->destroy_device || !b->prefers_fragment ||
         !b->create_decoder || !b->destroy_decoder || !b->clear_decoder ||
         !b->ingress.push || !b->ingress.ready || !b->decode_cpu) goto fail;
     unsigned major=0,minor=0,patch=0;
     b->api_version(&major,&minor,&patch);
+    lgc5_pw_diag("decoder ABI %u.%u.%u",major,minor,patch);
     if (major!=0 || minor!=6) goto fail;
-    if (b->create_device(&b->device)!=0 || !b->device) goto fail;
+    lgc5_pw_diag("Vulkan device init begin");
+    if (b->create_device(&b->device)!=0 || !b->device) { lgc5_pw_diag("Vulkan device init failed"); goto fail; }
+    lgc5_pw_diag("Vulkan device ready");
     lgc5_pw_decoder_info info={b->device,(int)width,(int)height,0,b->prefers_fragment(b->device)};
-    if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) goto fail;
+    if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) { lgc5_pw_diag("decoder create failed"); goto fail; }
+    lgc5_pw_diag("decoder ready %ux%u",width,height);
     b->ingress.decoder=b->decoder;
     b->width=width; b->height=height;
     b->clear_decoder(b->decoder);
