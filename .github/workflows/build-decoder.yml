@@ -92,6 +92,7 @@ jobs:
             -DCMAKE_C_COMPILER="${SDK}/bin/arm-webos-linux-gnueabi-gcc" \
             -DCMAKE_CXX_COMPILER="${SDK}/bin/arm-webos-linux-gnueabi-g++" \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/stage" \
             -DCMAKE_INSTALL_LIBDIR=lib \
             -DCMAKE_INSTALL_INCLUDEDIR=include \
@@ -116,6 +117,13 @@ jobs:
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe stage/pyrowave_frame_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
           test -f stage/lib/libpyrowave-shared.so.0.6.0
+          # The C5 provides GLIBCXX only through 3.4.29; reject dynamic C++ runtime dependencies.
+          readelf -d stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-dynamic.txt
+          cat /tmp/pyrowave-dynamic.txt
+          if grep -E 'NEEDED.*\[(libstdc\+\+|libgcc_s)\.so' /tmp/pyrowave-dynamic.txt; then
+            printf 'PyroWave still depends on a dynamic C++/GCC runtime\n' >&2
+            exit 1
+          fi
           # Verify the exact runtime entrypoints used by the Aurora bridge.
           readelf -Ws stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-symbols.txt
           for symbol in pyrowave_get_api_version pyrowave_create_default_device \
