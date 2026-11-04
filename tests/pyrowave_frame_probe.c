@@ -14,7 +14,7 @@ static uint32_t le32(const unsigned char *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1]<<8) | ((uint32_t)p[2]<<16) | ((uint32_t)p[3]<<24);
 }
 int main(int argc, char **argv) {
-    if (argc != 5) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so\\n",argv[0]);return 2;}
+    if (argc != 5) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so\n",argv[0]);return 2;}
     int w=atoi(argv[1]),h=atoi(argv[2]);
     if(w<128||h<128||w>4096||h>4096||(w&1)||(h&1)) return 2;
     FILE *fp=fopen(argv[3],"rb");
@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     if(fread(data,1,(size_t)n,fp)!=(size_t)n){free(data);fclose(fp);return 2;}
     fclose(fp);
     void *lib=dlopen(argv[4],RTLD_NOW|RTLD_LOCAL);
-    if(!lib){fprintf(stderr,"dlopen: %s\\n",dlerror());free(data);return 3;}
+    if(!lib){fprintf(stderr,"dlopen: %s\n",dlerror());free(data);return 3;}
     int (*make_device)(void**)=dlsym(lib,"pyrowave_create_default_device");
     void (*drop_device)(void*)=dlsym(lib,"pyrowave_device_destroy");
     int (*make_decoder)(const DecoderInfo*,void**)=dlsym(lib,"pyrowave_decoder_create");
@@ -38,16 +38,16 @@ int main(int argc, char **argv) {
     int (*decode)(void*,const CpuBuffer*)=dlsym(lib,"pyrowave_decoder_decode_cpu_buffer_synchronous");
     bool (*fragment)(void*)=dlsym(lib,"pyrowave_decoder_device_prefers_fragment_path");
     if(!make_device||!drop_device||!make_decoder||!drop_decoder||!clear||!push||!ready||!decode||!fragment){
-        fprintf(stderr,"missing PyroWave API\\n");dlclose(lib);free(data);return 3;
+        fprintf(stderr,"missing PyroWave API\n");dlclose(lib);free(data);return 3;
     }
     void *device=NULL,*decoder=NULL;
     int rc=make_device(&device);
-    if(rc||!device){fprintf(stderr,"device rc=%d\\n",rc);dlclose(lib);free(data);return 4;}
+    if(rc||!device){fprintf(stderr,"device rc=%d\n",rc);dlclose(lib);free(data);return 4;}
     DecoderInfo info={device,w,h,0,fragment(device)};
     rc=make_decoder(&info,&decoder);
-    if(rc||!decoder){fprintf(stderr,"decoder rc=%d\\n",rc);drop_device(device);dlclose(lib);free(data);return 5;}
+    if(rc||!decoder){fprintf(stderr,"decoder rc=%d\n",rc);drop_device(device);dlclose(lib);free(data);return 5;}
     clear(decoder);
-    size_t at=0;
+    size_t at=8;
     unsigned blocks=0;
     bool valid=true;
     /* The first 8 bytes must be the extended sequence header. */
@@ -65,14 +65,11 @@ int main(int argc, char **argv) {
             at+=pad;
             continue;
         }
-        if(a&0x80000000u){
-            if(at!=0){valid=false;break;}
-            at+=8;continue;
-        }
+        if(a&0x80000000u){valid=false;break;}
         size_t bytes=(size_t)((a>>16)&0xfffu)*4;
         if(bytes<8||bytes>(size_t)n-at||((a>>28)&7)!=((head>>28)&7)){valid=false;break;}
         rc=push(decoder,data+at,bytes);
-        if(rc){fprintf(stderr,"push rc=%d block=%u\\n",rc,blocks);valid=false;break;}
+        if(rc){fprintf(stderr,"push rc=%d block=%u\n",rc,blocks);valid=false;break;}
         blocks++;at+=bytes;
     }
     if(valid && blocks>0 && ready(decoder,false)){
@@ -81,11 +78,11 @@ int main(int argc, char **argv) {
         if(planes){
             CpuBuffer output={{planes,planes+y,planes+y+c},{(size_t)w,(size_t)w/2,(size_t)w/2},{y,c,c},w,h,1};
             rc=decode(decoder,&output);
-            printf("PyroWave CPU-output decode: rc=%d blocks=%u %dx%d fragment=%d\\n",rc,blocks,w,h,info.fragment_path);
+            printf("PyroWave CPU-output decode: rc=%d blocks=%u %dx%d fragment=%d\n",rc,blocks,w,h,info.fragment_path);
             free(planes);
         }else rc=-3;
     }else{
-        fprintf(stderr,"Invalid or incomplete PyroWave record frame (blocks=%u)\\n",blocks);rc=-2;
+        fprintf(stderr,"Invalid or incomplete PyroWave record frame (blocks=%u)\n",blocks);rc=-2;
     }
     drop_decoder(decoder);drop_device(device);dlclose(lib);free(data);
     return rc==0?0:6;
