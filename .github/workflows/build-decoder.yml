@@ -124,6 +124,7 @@ jobs:
           git submodule update --init --recursive
           cd ..
           python3 patches/add_pyrowave_toggle.py
+          python3 patches/add_pyrowave_protocol.py
           cd aurora
           printf '\n' >> cmake/PackageWebOS.cmake
           cat >> cmake/PackageWebOS.cmake <<'CMAKE'
