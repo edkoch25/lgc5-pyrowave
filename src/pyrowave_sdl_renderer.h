@@ -24,15 +24,21 @@ static inline void lgc5_pw_sdl_close(lgc5_pw_sdl_renderer *p) {
 static inline bool lgc5_pw_sdl_open(lgc5_pw_sdl_renderer *p,unsigned width,unsigned height) {
     if (!p || !width || !height || (width&1u) || (height&1u)) return false;
     memset(p,0,sizeof(*p));
+    lgc5_pw_diag("SDL window create begin");
     p->window=SDL_CreateWindow("PyroWave video",SDL_WINDOWPOS_CENTERED,
                                 SDL_WINDOWPOS_CENTERED,(int)width,(int)height,
                                 SDL_WINDOW_SHOWN|SDL_WINDOW_FULLSCREEN_DESKTOP);
     if (!p->window) { lgc5_pw_diag("SDL window failed: %s",SDL_GetError()); goto fail; }
+    lgc5_pw_diag("SDL window create complete");
+    lgc5_pw_diag("SDL renderer create begin");
     p->renderer=SDL_CreateRenderer(p->window,-1,SDL_RENDERER_ACCELERATED);
     if (!p->renderer) { lgc5_pw_diag("SDL renderer failed: %s",SDL_GetError()); goto fail; }
+    lgc5_pw_diag("SDL renderer create complete");
+    lgc5_pw_diag("SDL texture create begin");
     p->texture=SDL_CreateTexture(p->renderer,SDL_PIXELFORMAT_IYUV,
                                  SDL_TEXTUREACCESS_STREAMING,(int)width,(int)height);
     if (!p->texture) { lgc5_pw_diag("SDL texture failed: %s",SDL_GetError()); goto fail; }
+    lgc5_pw_diag("SDL texture create complete");
     p->width=width; p->height=height;
     lgc5_pw_diag("SDL renderer ready");
     return true;
