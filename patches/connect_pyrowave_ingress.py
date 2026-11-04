@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Connect Aurora video callbacks to PyroWave packet ingestion, gated by codec."""
+from pathlib import Path
+root=Path("aurora/src/app/stream/video")
+p=root/"session_video.c"
+s=p.read_text()
+def once(a,b):
+    global s
+    if s.count(a)!=1: raise RuntimeError(f"anchor count {s.count(a)}: {a[:80]}")
+    s=s.replace(a,b)
+once('#include "session_video.h"', '#include "session_video.h"\n#include "pyrowave_bridge.h"')
+once('static int vdec_stream_format = 0;', 'static int vdec_stream_format = 0;\nstatic lgc5_pw_bridge pyrowave_bridge;\nstatic bool pyrowave_active = false;')
+once('    SS4S_VideoInfo info;','''    if (videoFormat == VIDEO_FORMAT_PYROWAVE) {
+        if (!lgc5_pw_bridge_open(&pyrowave_bridge,(unsigned)width,(unsigned)height)) {
+            commons_log_error("Session","PyroWave Vulkan decoder initialization failed");
+            free(buffer); buffer=NULL;
+            return CALLBACKS_SESSION_ERROR_VDEC_UNSUPPORTED;
+        }
+        pyrowave_active=true;
+        commons_log_info("Session","PyroWave frame ingress initialized (%dx%d); presentation pending",width,height);
+        return 0;
+    }
+
+    SS4S_VideoInfo info;''')
+once('    SS4S_PlayerVideoClose(player);','''    if (pyrowave_active) {
+        lgc5_pw_bridge_close(&pyrowave_bridge);
+        pyrowave_active=false;
+    } else {
+        SS4S_PlayerVideoClose(player);
+    }''')
+once('    SS4S_VideoFeedFlags flags =','''    if (pyrowave_active) {
+        /* Decode readiness is not presentation. Do not enable codec selection
+         * until a Vulkan image presenter consumes the decoded GPU buffers. */
+        return lgc5_pw_bridge_submit(&pyrowave_bridge,buffer,length) ? DR_OK : DR_NEED_IDR;
+    }
+    SS4S_VideoFeedFlags flags =''')
+p.write_text(s)
+for name in ("pyrowave_records.h","pyrowave_ingest.h","pyrowave_bridge.h"):
+    (root/name).write_bytes((Path("src")/name).read_bytes())
+print("Aurora live decoder callbacks connected to PyroWave ingress (presentation remains gated).")
