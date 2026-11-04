@@ -41,6 +41,10 @@ once('    SS4S_PlayerVideoClose(player);','''    if (pyrowave_active) {
 once('    SS4S_VideoFeedFlags flags =','''    if (pyrowave_active) {
         /* Decode readiness is not presentation. Do not enable codec selection
          * until a Vulkan image presenter consumes the decoded GPU buffers. */
+        static unsigned long pw_callbacks=0;
+        ++pw_callbacks;
+        if (pw_callbacks<=3 || pw_callbacks%120==0)
+            lgc5_pw_diag("frame callback count=%lu bytes=%zu",pw_callbacks,(size_t)length);
         return lgc5_pw_bridge_submit(&pyrowave_bridge,buffer,length) ? DR_OK : DR_NEED_IDR;
     }
     SS4S_VideoFeedFlags flags =''')

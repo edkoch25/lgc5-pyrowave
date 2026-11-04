@@ -10,12 +10,15 @@ typedef struct {
     lgc5_pw_push_fn push;
     lgc5_pw_ready_fn ready;
     unsigned frames, dropped;
+    int last_stage, last_result;
+    unsigned last_blocks;
 } lgc5_pw_ingest;
 static inline bool lgc5_pw_ingest_frame(lgc5_pw_ingest *ctx, const void *frame,
                                         size_t size, unsigned width, unsigned height) {
     if (!ctx || !ctx->decoder || !ctx->push || !ctx->ready) return false;
+    ctx->last_stage=1; ctx->last_result=0; ctx->last_blocks=0;
     lgc5_pw_records records;
-    if (!lgc5_pw_records_init(&records,frame,size,width,height)) goto fail;
+    if (!lgc5_pw_records_init(&records,frame,size,width,height)) { ctx->last_stage=2; goto fail; }
     const uint8_t *block;
     size_t length;
     int state;
@@ -24,7 +27,7 @@ static inline bool lgc5_pw_ingest_frame(lgc5_pw_ingest *ctx, const void *frame,
         if (records.blocks==1) {
             /* The first packet carries the 8-byte sequence header. */
             uint8_t *first=malloc(length+8);
-            if (!first) goto fail;
+            if (!first) { ctx->last_stage=3; goto fail; }
             memcpy(first,frame,8);
             memcpy(first+8,block,length);
             rc=ctx->push(ctx->decoder,first,length+8);
@@ -32,10 +35,13 @@ static inline bool lgc5_pw_ingest_frame(lgc5_pw_ingest *ctx, const void *frame,
         } else {
             rc=ctx->push(ctx->decoder,block,length);
         }
-        if (rc!=0) goto fail;
+        if (rc!=0) { ctx->last_stage=4; ctx->last_result=rc; goto fail; }
     }
-    if (state!=0 || !ctx->ready(ctx->decoder,false)) goto fail;
+    ctx->last_blocks=records.blocks;
+    if (state!=0) { ctx->last_stage=5; ctx->last_result=state; goto fail; }
+    if (!ctx->ready(ctx->decoder,false)) { ctx->last_stage=6; goto fail; }
     ++ctx->frames;
+    ctx->last_stage=0;
     return true;
 fail:
     ++ctx->dropped;

@@ -191,10 +191,18 @@ fail:
 }
 static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, size_t length) {
     if (!b || !b->decoder) return false;
+    static unsigned long pw_submits=0, pw_decoded=0, pw_presented=0;
+    ++pw_submits;
     if (!lgc5_pw_ingest_frame(&b->ingress,frame,length,b->width,b->height)) {
+        if (pw_submits<=3 || pw_submits%120==0)
+            lgc5_pw_diag("ingest failed count=%lu stage=%d rc=%d blocks=%u accepted=%u dropped=%u",
+                pw_submits,b->ingress.last_stage,b->ingress.last_result,b->ingress.last_blocks,b->ingress.frames,b->ingress.dropped);
         b->clear_decoder(b->decoder);
         return false;
     }
+    if (pw_submits<=3 || pw_submits%120==0)
+        lgc5_pw_diag("ingest ready count=%lu blocks=%u accepted=%u dropped=%u",
+            pw_submits,b->ingress.last_blocks,b->ingress.frames,b->ingress.dropped);
     bool presented=false;
     if (b->present_ready_frame) {
         presented=b->present_ready_frame(b->present_userdata,b->decoder);
@@ -220,8 +228,15 @@ static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, s
         output.width=(int)b->width;
         output.height=(int)b->height;
         output.format=1; /* PYROWAVE_CPU_BUFFER_FORMAT_YUV420P */
-        if (b->decode_cpu(b->decoder,&output)==0)
+        int decode_rc=b->decode_cpu(b->decoder,&output);
+        if (decode_rc==0) {
+            ++pw_decoded;
             presented=b->present_cpu_frame(b->present_userdata,&output);
+        }
+        if (presented) ++pw_presented;
+        if (pw_submits<=3 || pw_submits%120==0)
+            lgc5_pw_diag("cpu decode count=%lu rc=%d decoded=%lu presented=%lu",
+                pw_submits,decode_rc,pw_decoded,pw_presented);
     }
 not_presented:
     if (!presented) {
