@@ -8,14 +8,22 @@ def once(a,b):
     global s
     if s.count(a)!=1: raise RuntimeError(f"anchor count {s.count(a)}: {a[:80]}")
     s=s.replace(a,b)
-once('#include "session_video.h"', '#include "session_video.h"\n#include "pyrowave_bridge.h"')
-once('static int vdec_stream_format = 0;', 'static int vdec_stream_format = 0;\nstatic lgc5_pw_bridge pyrowave_bridge;\nstatic bool pyrowave_active = false;')
+once('#include "session_video.h"', '#include "session_video.h"\n#include "pyrowave_bridge.h"\n#include "pyrowave_sdl_renderer.h"')
+once('static int vdec_stream_format = 0;', 'static int vdec_stream_format = 0;\nstatic lgc5_pw_bridge pyrowave_bridge;\nstatic bool pyrowave_active = false;\nstatic lgc5_pw_sdl_renderer pyrowave_renderer;')
 once('    SS4S_VideoInfo info;','''    if (videoFormat == VIDEO_FORMAT_PYROWAVE) {
         if (!lgc5_pw_bridge_open(&pyrowave_bridge,(unsigned)width,(unsigned)height)) {
             commons_log_error("Session","PyroWave Vulkan decoder initialization failed");
             free(buffer); buffer=NULL;
             return CALLBACKS_SESSION_ERROR_VDEC_UNSUPPORTED;
         }
+        if (!lgc5_pw_sdl_open(&pyrowave_renderer,(unsigned)width,(unsigned)height)) {
+            commons_log_error("Session","PyroWave SDL video renderer initialization failed: %s",SDL_GetError());
+            lgc5_pw_bridge_close(&pyrowave_bridge);
+            free(buffer); buffer=NULL;
+            return CALLBACKS_SESSION_ERROR_VDEC_UNSUPPORTED;
+        }
+        pyrowave_bridge.present_cpu_frame=lgc5_pw_sdl_present;
+        pyrowave_bridge.present_userdata=&pyrowave_renderer;
         pyrowave_active=true;
         commons_log_info("Session","PyroWave frame ingress initialized (%dx%d); presentation pending",width,height);
         return 0;
@@ -35,6 +43,6 @@ once('    SS4S_VideoFeedFlags flags =','''    if (pyrowave_active) {
     }
     SS4S_VideoFeedFlags flags =''')
 p.write_text(s)
-for name in ("pyrowave_records.h","pyrowave_ingest.h","pyrowave_bridge.h"):
+for name in ("pyrowave_records.h","pyrowave_ingest.h","pyrowave_bridge.h","pyrowave_sdl_renderer.h"):
     (root/name).write_bytes((Path("src")/name).read_bytes())
-print("Aurora live decoder callbacks connected to PyroWave ingress (presentation remains gated).")
+print("Aurora live decoder callbacks connected to PyroWave ingress (SDL presenter wired; codec selection remains gated pending TV runtime validation).")
