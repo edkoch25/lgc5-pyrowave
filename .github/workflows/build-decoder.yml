@@ -126,6 +126,23 @@ jobs:
           assert not any(chr(92) + "n" in line for line in body.splitlines() if "lgc5_pw_vulkan_trace(" in line and "fprintf" not in line)
           assert code.count("pyrowave_result pyrowave_create_default_device(") == 1
           assert "pyrowave Vulkan: %s" in code
+          # Use Granite's supported external function-pointer initialization.
+          # The test app calls this before pyrowave_create_default_device().
+          marker = 'pyrowave_result pyrowave_create_device_by_compat('
+          assert code.count(marker) == 1
+          init_api = """
+          extern "C" int lgc5_pyrowave_init_vulkan_loader(void *get_instance_proc_addr)
+          {
+              if (!get_instance_proc_addr)
+                  return 0;
+              auto get_proc = reinterpret_cast<PFN_vkGetInstanceProcAddr>(get_instance_proc_addr);
+              return Vulkan::Context::init_loader(get_proc) ? 1 : 0;
+          }
+
+          """
+          code = '#include <vulkan/vulkan.h>' + chr(10) + code
+          code = code.replace(marker, init_api + marker)
+          assert code.count('lgc5_pyrowave_init_vulkan_loader(') == 1
           api.write_text(code)
           print("Instrumented pinned PyroWave C API Vulkan initialization:", api)
           PY

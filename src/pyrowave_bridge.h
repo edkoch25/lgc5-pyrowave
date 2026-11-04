@@ -25,6 +25,7 @@ typedef struct lgc5_pw_cpu_buffer {
 typedef struct {
     void *library, *cpp_runtime, *device, *decoder;
     int (*create_device)(void **);
+    int (*init_vulkan_loader)(void *);
     void (*destroy_device)(void *);
     bool (*prefers_fragment)(void *);
     int (*create_decoder)(const lgc5_pw_decoder_info *, void **);
@@ -87,6 +88,7 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     }
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
     *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
+    *(void **)(&b->init_vulkan_loader)=dlsym(b->library,"lgc5_pyrowave_init_vulkan_loader");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
     *(void **)(&b->prefers_fragment)=dlsym(b->library,"pyrowave_decoder_device_prefers_fragment_path");
     *(void **)(&b->create_decoder)=dlsym(b->library,"pyrowave_decoder_create");
@@ -103,6 +105,22 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     b->api_version(&major,&minor,&patch);
     lgc5_pw_diag("decoder ABI %u.%u.%u",major,minor,patch);
     if (major!=0 || minor!=6) goto fail;
+    /* Granite's supported external loader entrypoint avoids libvulkan.so discovery. */
+    void *mali_loader=dlopen("/usr/lib/libmali.so",RTLD_NOW|RTLD_LOCAL);
+    if (!mali_loader) {
+        const char *err=dlerror();
+        lgc5_pw_diag("Mali external loader open failed: %s",err ? err : "unknown");
+        goto fail;
+    }
+    void *icd_proc=dlsym(mali_loader,"vk_icdGetInstanceProcAddr");
+    lgc5_pw_diag("Mali external loader entrypoint=%d bridge_api=%d",!!icd_proc,!!b->init_vulkan_loader);
+    if (!icd_proc || !b->init_vulkan_loader || !b->init_vulkan_loader(icd_proc)) {
+        lgc5_pw_diag("Mali external loader initialization failed");
+        dlclose(mali_loader);
+        goto fail;
+    }
+    lgc5_pw_diag("Mali external loader initialized");
+    /* Keep the Mali driver loaded for the lifetime of Granite's global function pointers. */
     /* In-process Mali ICD probe: distinguishes driver/loader failure from Granite setup.
      * Uses the same direct ICD entrypoint validated by the standalone TV probe. */
     {
