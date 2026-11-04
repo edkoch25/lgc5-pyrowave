@@ -103,8 +103,60 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     b->api_version(&major,&minor,&patch);
     lgc5_pw_diag("decoder ABI %u.%u.%u",major,minor,patch);
     if (major!=0 || minor!=6) goto fail;
+    /* In-process Mali ICD probe: distinguishes driver/loader failure from Granite setup.
+     * Uses the same direct ICD entrypoint validated by the standalone TV probe. */
+    {
+        void *mali=dlopen("/usr/lib/libmali.so",RTLD_NOW|RTLD_LOCAL);
+        if (!mali) {
+            const char *err=dlerror();
+            lgc5_pw_diag("Mali ICD dlopen failed: %s",err ? err : "unknown");
+        } else {
+            typedef void *(*lgc5_vk_gipa)(void *,const char *);
+            typedef int32_t (*lgc5_vk_create)(const void *,const void *,void **);
+            typedef int32_t (*lgc5_vk_enumerate)(void *,uint32_t *,void *);
+            typedef void (*lgc5_vk_destroy)(void *,const void *);
+            typedef int32_t (*lgc5_vk_negotiate)(uint32_t *);
+            lgc5_vk_gipa get=(lgc5_vk_gipa)dlsym(mali,"vkGetInstanceProcAddr");
+            lgc5_vk_gipa icd=(lgc5_vk_gipa)dlsym(mali,"vk_icdGetInstanceProcAddr");
+            lgc5_vk_negotiate negotiate=(lgc5_vk_negotiate)dlsym(mali,"vk_icdNegotiateLoaderICDInterfaceVersion");
+            lgc5_pw_diag("Mali ICD symbols standard=%d icd=%d negotiate=%d",!!get,!!icd,!!negotiate);
+            if (negotiate) {
+                uint32_t v=5;
+                int32_t rc=negotiate(&v);
+                lgc5_pw_diag("Mali ICD negotiation result=%d version=%u",(int)rc,v);
+            }
+            if (!get) get=icd;
+            if (get) {
+                /* VkApplicationInfo and VkInstanceCreateInfo ABI-compatible minimal layouts. */
+                struct lgc5_vk_app { uint32_t type; const void *next; const char *name; uint32_t version; const char *engine; uint32_t engine_version; uint32_t api; };
+                struct lgc5_vk_info { uint32_t type; const void *next; uint32_t flags; const void *app; uint32_t layers; const char *const *layer_names; uint32_t extensions; const char *const *extension_names; };
+                struct lgc5_vk_app app={0,NULL,"lgc5-pyrowave",0,NULL,0,(1u<<22)|(2u<<12)};
+                struct lgc5_vk_info info={1,NULL,0,&app,0,NULL,0,NULL};
+                lgc5_vk_create create=(lgc5_vk_create)get(NULL,"vkCreateInstance");
+                lgc5_pw_diag("Mali ICD vkCreateInstance symbol=%d",!!create);
+                if (create) {
+                    void *instance=NULL;
+                    int32_t rc=create(&info,NULL,&instance);
+                    lgc5_pw_diag("Mali ICD vkCreateInstance result=%d instance=%d",(int)rc,!!instance);
+                    if (rc==0 && instance) {
+                        lgc5_vk_enumerate enumerate=(lgc5_vk_enumerate)get(instance,"vkEnumeratePhysicalDevices");
+                        lgc5_vk_destroy destroy=(lgc5_vk_destroy)get(instance,"vkDestroyInstance");
+                        if (enumerate) {
+                            uint32_t count=0;
+                            rc=enumerate(instance,&count,NULL);
+                            lgc5_pw_diag("Mali ICD physical devices result=%d count=%u",(int)rc,count);
+                        } else lgc5_pw_diag("Mali ICD enumerate symbol missing");
+                        if (destroy) destroy(instance,NULL);
+                    }
+                }
+            }
+            dlclose(mali);
+        }
+    }
     lgc5_pw_diag("Vulkan device init begin");
-    if (b->create_device(&b->device)!=0 || !b->device) { lgc5_pw_diag("Vulkan device init failed"); goto fail; }
+    int device_result=b->create_device(&b->device);
+    lgc5_pw_diag("Vulkan device init result=%d device=%d",device_result,!!b->device);
+    if (device_result!=0 || !b->device) { lgc5_pw_diag("Vulkan device init failed"); goto fail; }
     lgc5_pw_diag("Vulkan device ready");
     lgc5_pw_decoder_info info={b->device,(int)width,(int)height,0,b->prefers_fragment(b->device)};
     if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) { lgc5_pw_diag("decoder create failed"); goto fail; }
