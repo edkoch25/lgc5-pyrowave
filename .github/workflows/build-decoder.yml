@@ -126,6 +126,8 @@ jobs:
           # Keep the original Aurora checkout and all other submodules pinned.
           git -C core/moonlight-common-c fetch --depth=1 https://github.com/Nonary/moonlight-common-c.git e41355ea01670fd4c830b384009d31dd0339a705
           git -C core/moonlight-common-c checkout --detach FETCH_HEAD
+          git -C core/moonlight-common-c submodule update --init --recursive
+          test -f core/moonlight-common-c/nanors/rs.c
           cd ..
           python3 patches/add_pyrowave_toggle.py
           cd aurora
