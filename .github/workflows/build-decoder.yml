@@ -22,6 +22,13 @@ jobs:
         with:
           ref: development/pyrowave-decoder
 
+      - name: Validate PyroWave frame ingress parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -O2 -Wall -Wextra -Werror tests/pyrowave_records_test.c -o /tmp/pyrowave_records_test
+          /tmp/pyrowave_records_test
+
       - name: Fetch pinned PyroWave and Granite
         shell: bash
         run: |
