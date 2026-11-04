@@ -4,7 +4,8 @@
 #include <stdarg.h>
 #include <time.h>
 static inline void lgc5_pw_diag(const char *fmt, ...) {
- FILE *f=fopen("/tmp/lgc5-pyrowave-diag.log","a");
+ FILE *f=fopen("/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/cache/pyrowave-diag.log","a");
+ if (!f) f=fopen("/tmp/lgc5-pyrowave-diag.log","a");
  if (!f) return;
  fprintf(f,"%ld ",(long)time(NULL));
  va_list args; va_start(args,fmt); vfprintf(f,fmt,args); va_end(args);
