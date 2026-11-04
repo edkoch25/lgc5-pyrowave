@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
     if(!(head&0x80000000u)||((head&0x3fff)+1)!=(uint32_t)w||
        (((head>>14)&0x3fff)+1)!=(uint32_t)h||((seq>>24)&3)!=0||((seq>>26)&1)!=0)
         valid=false;
-    if(valid && push(decoder,data,8)!=0) valid=false;
+    /* The sequence header must be prepended to the first block packet. */
     while(valid&&at<(size_t)n) {
         if((size_t)n-at<8){valid=false;break;}
         uint32_t a=le32(data+at),b=le32(data+at+4);
@@ -68,7 +68,14 @@ int main(int argc, char **argv) {
         if(a&0x80000000u){valid=false;break;}
         size_t bytes=(size_t)((a>>16)&0xfffu)*4;
         if(bytes<8||bytes>(size_t)n-at||((a>>28)&7)!=((head>>28)&7)){valid=false;break;}
-        rc=push(decoder,data+at,bytes);
+        if(blocks==0){
+            unsigned char *first=malloc(bytes+8);
+            if(!first){valid=false;break;}
+            memcpy(first,data,8);
+            memcpy(first+8,data+at,bytes);
+            rc=push(decoder,first,bytes+8);
+            free(first);
+        }else rc=push(decoder,data+at,bytes);
         if(rc){fprintf(stderr,"push rc=%d block=%u\n",rc,blocks);valid=false;break;}
         blocks++;at+=bytes;
     }
