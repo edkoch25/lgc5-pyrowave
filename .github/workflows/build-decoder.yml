@@ -53,10 +53,14 @@ jobs:
           assert source.count(needle) == 1
           # webOS ships the Mali ICD directly, without libvulkan.so or libvulkan.so.1.
           # Prefer the system ICD only after the normal loader lookup fails.
-          loader_fallback = 'if (!module)\\n\\t\\t\\treturn false;'
-          assert source.count(loader_fallback) == 1
+          loader_fallback = 'if (!module)' + chr(10) + chr(9) * 4 + 'return false;'
+          assert source.count(loader_fallback) == 1, "Granite loader fallback location changed"
           source = source.replace(loader_fallback,
-              'if (!module)\\n\\t\\t\\tmodule = dlopen("/usr/lib/libmali.so", RTLD_LOCAL | RTLD_LAZY);\\n\\t\\tif (!module)\\n\\t\\t\\treturn false;')
+              'if (!module)' + chr(10) + chr(9) * 4 +
+              'module = dlopen("/usr/lib/libmali.so", RTLD_LOCAL | RTLD_LAZY);' +
+              chr(10) + chr(9) * 3 + 'if (!module)' +
+              chr(10) + chr(9) * 4 + 'return false;')
+          assert source.count('dlopen("/usr/lib/libmali.so"') == 1
           replacement = needle + '''
           // LG webOS Mali exposes the Vulkan ICD interface, not the loader interface.
           if (!addr)
