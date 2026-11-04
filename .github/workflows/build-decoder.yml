@@ -100,7 +100,7 @@ jobs:
           """
           # Do not rely on Granite's logger: PyroWave explicitly disables it.
           body = body.replace("return PYROWAVE_ERROR_NO_VULKAN;",
-                              'lgc5_pw_vulkan_trace("NO_VULKAN return", __LINE__); return PYROWAVE_ERROR_NO_VULKAN;')
+                              '{ lgc5_pw_vulkan_trace("NO_VULKAN return", __LINE__); return PYROWAVE_ERROR_NO_VULKAN; }')
           body = body.replace("if (!Context::init_loader(nullptr))",
                               'lgc5_pw_vulkan_trace("loader begin", 0);\\n\\tif (!Context::init_loader(nullptr))')
           body = body.replace("auto *dev = new pyrowave_device_opaque();",
@@ -124,6 +124,8 @@ jobs:
           body = body.replace(chr(92) + "n", chr(10)).replace(chr(92) + "t", chr(9))
           code = "#include <stdio.h>" + chr(10) + code[:start] + prefix + body + code[end:]
           assert not any(chr(92) + "n" in line for line in body.splitlines() if "lgc5_pw_vulkan_trace(" in line and "fprintf" not in line)
+          assert code.count('{ lgc5_pw_vulkan_trace("NO_VULKAN return", __LINE__); return PYROWAVE_ERROR_NO_VULKAN; }') == 5
+          assert '#include <vulkan/vulkan.h>' not in code
           assert code.count("pyrowave_result pyrowave_create_default_device(") == 1
           assert "pyrowave Vulkan: %s" in code
           # Use Granite's supported external function-pointer initialization.
@@ -140,7 +142,7 @@ jobs:
           }
 
           """
-          code = '#include <vulkan/vulkan.h>' + chr(10) + code
+          # Granite context.hpp already provides Vulkan declarations through Volk.
           code = code.replace(marker, init_api + marker)
           assert code.count('lgc5_pyrowave_init_vulkan_loader(') == 1
           api.write_text(code)
