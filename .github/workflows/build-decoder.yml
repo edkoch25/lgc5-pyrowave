@@ -125,6 +125,7 @@ jobs:
           cd ..
           python3 patches/add_pyrowave_toggle.py
           python3 patches/add_pyrowave_protocol.py
+          python3 patches/wire_pyrowave_codec.py
           cd aurora
           printf '\n' >> cmake/PackageWebOS.cmake
           cat >> cmake/PackageWebOS.cmake <<'CMAKE'
