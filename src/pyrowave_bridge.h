@@ -20,6 +20,9 @@ typedef struct {
     void (*clear_decoder)(void *);
     lgc5_pw_ingest ingress;
     unsigned width, height;
+    /* Presenter must consume a ready frame before it is acknowledged. */
+    bool (*present_ready_frame)(void *userdata, void *decoder);
+    void *present_userdata;
 } lgc5_pw_bridge;
 static inline void lgc5_pw_bridge_close(lgc5_pw_bridge *b) {
     if (b->decoder && b->destroy_decoder) b->destroy_decoder(b->decoder);
@@ -64,6 +67,12 @@ fail:
 static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, size_t length) {
     if (!b || !b->decoder) return false;
     if (!lgc5_pw_ingest_frame(&b->ingress,frame,length,b->width,b->height)) {
+        b->clear_decoder(b->decoder);
+        return false;
+    }
+    if (!b->present_ready_frame ||
+        !b->present_ready_frame(b->present_userdata,b->decoder)) {
+        /* A decoded-ready frame is not a displayed frame. */
         b->clear_decoder(b->decoder);
         return false;
     }
