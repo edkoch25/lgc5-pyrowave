@@ -28,6 +28,8 @@ jobs:
           set -euo pipefail
           cc -std=c11 -O2 -Wall -Wextra -Werror tests/pyrowave_records_test.c -o /tmp/pyrowave_records_test
           /tmp/pyrowave_records_test
+          cc -std=c11 -O2 -Wall -Wextra -Werror tests/pyrowave_ingest_test.c -o /tmp/pyrowave_ingest_test
+          /tmp/pyrowave_ingest_test
 
       - name: Fetch pinned PyroWave and Granite
         shell: bash
