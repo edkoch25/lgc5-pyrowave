@@ -121,7 +121,8 @@ jobs:
           for symbol in pyrowave_get_api_version pyrowave_create_default_device \
             pyrowave_device_destroy pyrowave_decoder_device_prefers_fragment_path \
             pyrowave_decoder_create pyrowave_decoder_destroy pyrowave_decoder_clear \
-            pyrowave_decoder_push_packet pyrowave_decoder_decode_is_ready; do
+            pyrowave_decoder_push_packet pyrowave_decoder_decode_is_ready \
+            pyrowave_decoder_decode_cpu_buffer_synchronous; do
             grep -Eq "[[:space:]]${symbol}$" /tmp/pyrowave-symbols.txt || {
               printf 'Missing required PyroWave symbol: %s\\n' "$symbol" >&2
               exit 1

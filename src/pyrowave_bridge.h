@@ -5,11 +5,22 @@
 #include "pyrowave_ingest.h"
 #include <dlfcn.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdlib.h>
 typedef struct {
     void *device;
     int width, height, chroma;
     bool fragment_path;
 } lgc5_pw_decoder_info;
+/* Mirrors pyrowave_cpu_buffer (0.6 ABI), with 8-bit planar YUV420. */
+typedef struct lgc5_pw_cpu_buffer {
+    void *data[3];
+    size_t row_stride_in_bytes[3];
+    size_t plane_size_in_bytes[3];
+    int width, height, format;
+} lgc5_pw_cpu_buffer;
 typedef struct {
     void *library, *device, *decoder;
     int (*create_device)(void **);
@@ -20,12 +31,18 @@ typedef struct {
     void (*clear_decoder)(void *);
     lgc5_pw_ingest ingress;
     unsigned width, height;
-    void (*api_version)(unsigned *, unsigned *, unsigned *);
+    void (*api_version)(uint32_t *, uint32_t *, uint32_t *);
+    int (*decode_cpu)(void *, const struct lgc5_pw_cpu_buffer *);
     /* Presenter must consume a ready frame before it is acknowledged. */
     bool (*present_ready_frame)(void *userdata, void *decoder);
     void *present_userdata;
+    /* Optional bring-up path: consumes decoded YUV420 before returning. */
+    bool (*present_cpu_frame)(void *, const lgc5_pw_cpu_buffer *);
+    unsigned char *cpu_planes;
+    size_t cpu_bytes;
 } lgc5_pw_bridge;
 static inline void lgc5_pw_bridge_close(lgc5_pw_bridge *b) {
+    free(b->cpu_planes);
     if (b->decoder && b->destroy_decoder) b->destroy_decoder(b->decoder);
     if (b->device && b->destroy_device) b->destroy_device(b->device);
     if (b->library) dlclose(b->library);
@@ -52,9 +69,10 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     *(void **)(&b->clear_decoder)=dlsym(b->library,"pyrowave_decoder_clear");
     *(void **)(&b->ingress.push)=dlsym(b->library,"pyrowave_decoder_push_packet");
     *(void **)(&b->ingress.ready)=dlsym(b->library,"pyrowave_decoder_decode_is_ready");
+    *(void **)(&b->decode_cpu)=dlsym(b->library,"pyrowave_decoder_decode_cpu_buffer_synchronous");
     if (!b->api_version || !b->create_device || !b->destroy_device || !b->prefers_fragment ||
         !b->create_decoder || !b->destroy_decoder || !b->clear_decoder ||
-        !b->ingress.push || !b->ingress.ready) goto fail;
+        !b->ingress.push || !b->ingress.ready || !b->decode_cpu) goto fail;
     unsigned major=0,minor=0,patch=0;
     b->api_version(&major,&minor,&patch);
     if (major!=0 || minor!=6) goto fail;
@@ -75,8 +93,36 @@ static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, s
         b->clear_decoder(b->decoder);
         return false;
     }
-    if (!b->present_ready_frame ||
-        !b->present_ready_frame(b->present_userdata,b->decoder)) {
+    bool presented=false;
+    if (b->present_ready_frame) {
+        presented=b->present_ready_frame(b->present_userdata,b->decoder);
+    } else if (b->present_cpu_frame) {
+        const size_t y=(size_t)b->width*b->height;
+        if (y > SIZE_MAX / 3) goto not_presented;
+        const size_t bytes=y+y/2;
+        if (!b->cpu_planes) {
+            b->cpu_planes=malloc(bytes);
+            if (!b->cpu_planes) goto not_presented;
+            b->cpu_bytes=bytes;
+        }
+        lgc5_pw_cpu_buffer output={0};
+        output.data[0]=b->cpu_planes;
+        output.data[1]=b->cpu_planes+y;
+        output.data[2]=b->cpu_planes+y+y/4;
+        output.row_stride_in_bytes[0]=b->width;
+        output.row_stride_in_bytes[1]=b->width/2;
+        output.row_stride_in_bytes[2]=b->width/2;
+        output.plane_size_in_bytes[0]=y;
+        output.plane_size_in_bytes[1]=y/4;
+        output.plane_size_in_bytes[2]=y/4;
+        output.width=(int)b->width;
+        output.height=(int)b->height;
+        output.format=1; /* PYROWAVE_CPU_BUFFER_FORMAT_YUV420P */
+        if (b->decode_cpu(b->decoder,&output)==0)
+            presented=b->present_cpu_frame(b->present_userdata,&output);
+    }
+not_presented:
+    if (!presented) {
         /* A decoded-ready frame is not a displayed frame. */
         b->clear_decoder(b->decoder);
         return false;
