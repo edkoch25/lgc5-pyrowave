@@ -109,7 +109,9 @@ jobs:
           body = body.replace("if (!selected_gpu)",
                               'lgc5_pw_vulkan_trace("GPU init_device loop ended", selected_gpu ? 1 : 0);\\n\\tif (!selected_gpu)')
           assert 'GPU init_device begin' in body and 'GPU apiVersion' in body
-          code = "#include <stdio.h>\\n" + code[:start] + prefix + body + code[end:]\n          assert code.count("pyrowave_result pyrowave_create_default_device(") == 1\n          assert "pyrowave Vulkan: %s" in code
+          code = "#include <stdio.h>\\n" + code[:start] + prefix + body + code[end:]
+          assert code.count("pyrowave_result pyrowave_create_default_device(") == 1
+          assert "pyrowave Vulkan: %s" in code
           api.write_text(code)
           print("Instrumented pinned PyroWave C API Vulkan initialization:", api)
           PY
