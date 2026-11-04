@@ -18,7 +18,7 @@ int main(void) {
     uint32_t h=0x80000000u|3199u|(1799u<<14);
     for(unsigned i=0;i<4;i++) frame[i]=(uint8_t)(h>>(8*i));
     frame[10]=2;
-    lgc5_pw_ingest ctx={(void *)0x1,push,ready,0,0};
+    lgc5_pw_ingest ctx={.decoder=(void *)0x1,.push=push,.ready=ready};
     assert(lgc5_pw_ingest_frame(&ctx,frame,sizeof(frame),3200,1800));
     assert(ctx.frames==1 && ctx.dropped==0 && calls==1);
     assert(!lgc5_pw_ingest_frame(&ctx,frame,12,3200,1800));
