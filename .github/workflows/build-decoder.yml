@@ -88,7 +88,6 @@ jobs:
           }
           """
           # Do not rely on Granite's logger: PyroWave explicitly disables it.
-          code = '#include <stdio.h>\\n' + code
           body = body.replace("return PYROWAVE_ERROR_NO_VULKAN;",
                               'lgc5_pw_vulkan_trace("NO_VULKAN return", __LINE__); return PYROWAVE_ERROR_NO_VULKAN;')
           body = body.replace("if (!Context::init_loader(nullptr))",
@@ -110,7 +109,7 @@ jobs:
           body = body.replace("if (!selected_gpu)",
                               'lgc5_pw_vulkan_trace("GPU init_device loop ended", selected_gpu ? 1 : 0);\\n\\tif (!selected_gpu)')
           assert 'GPU init_device begin' in body and 'GPU apiVersion' in body
-          code = code[:start] + prefix + body + code[end:]
+          code = "#include <stdio.h>\\n" + code[:start] + prefix + body + code[end:]\n          assert code.count("pyrowave_result pyrowave_create_default_device(") == 1\n          assert "pyrowave Vulkan: %s" in code
           api.write_text(code)
           print("Instrumented pinned PyroWave C API Vulkan initialization:", api)
           PY
