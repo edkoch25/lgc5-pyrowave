@@ -26,4 +26,16 @@ needle2='    // If no video format is supported, default to H.264'
 assert s.count(needle2)==1
 s=s.replace(needle2,'video_formats_selected:\n'+needle2)
 p.write_text(s)
+# Aurora reconstructs the host codec capability mask from selected formats.
+# Include PyroWave so the RTSP negotiation guard can recognize it.
+p=Path("aurora/src/app/stream/session.c")
+s=p.read_text()
+needle='    session->app_id = gs_app->id;'
+assert s.count(needle)==1
+s=s.replace(needle,'''    if (session->config.stream.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE) {
+        session->server->serverInfo.serverCodecModeSupport |= SCM_PYROWAVE;
+    }
+'''+needle)
+p.write_text(s)
+
 print("Wired PyroWave codec preference with safe renderer readiness gate")
