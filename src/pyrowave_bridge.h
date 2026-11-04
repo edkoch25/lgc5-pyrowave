@@ -88,7 +88,7 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     }
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
     *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
-    *(void **)(&b->init_vulkan_loader)=dlsym(b->library,"lgc5_pyrowave_init_vulkan_loader");
+    *(void **)(&b->init_vulkan_loader)=dlsym(b->library,"pyrowave_lgc5_init_vulkan_loader");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
     *(void **)(&b->prefers_fragment)=dlsym(b->library,"pyrowave_decoder_device_prefers_fragment_path");
     *(void **)(&b->create_decoder)=dlsym(b->library,"pyrowave_decoder_create");

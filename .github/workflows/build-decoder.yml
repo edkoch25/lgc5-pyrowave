@@ -133,7 +133,7 @@ jobs:
           marker = 'pyrowave_result pyrowave_create_device_by_compat('
           assert code.count(marker) == 1
           init_api = """
-          extern "C" PYROWAVE_PUBLIC_API int lgc5_pyrowave_init_vulkan_loader(void *get_instance_proc_addr)
+          extern "C" PYROWAVE_PUBLIC_API int pyrowave_lgc5_init_vulkan_loader(void *get_instance_proc_addr)
           {
               if (!get_instance_proc_addr)
                   return 0;
@@ -144,7 +144,7 @@ jobs:
           """
           # Granite context.hpp already provides Vulkan declarations through Volk.
           code = code.replace(marker, init_api + marker)
-          assert code.count('lgc5_pyrowave_init_vulkan_loader(') == 1
+          assert code.count('pyrowave_lgc5_init_vulkan_loader(') == 1
           api.write_text(code)
           print("Instrumented pinned PyroWave C API Vulkan initialization:", api)
           PY
@@ -205,7 +205,7 @@ jobs:
           fi
           # The webOS bridge resolves this helper with dlsym: it must be globally exported.
           readelf --dyn-syms --wide stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-dynsymbols.txt
-          grep -Eq '[[:space:]]GLOBAL[[:space:]]+DEFAULT[[:space:]]+[0-9]+[[:space:]]+lgc5_pyrowave_init_vulkan_loader$' /tmp/pyrowave-dynsymbols.txt || {
+          grep -Eq '[[:space:]]GLOBAL[[:space:]]+DEFAULT[[:space:]]+[0-9]+[[:space:]]+pyrowave_lgc5_init_vulkan_loader$' /tmp/pyrowave-dynsymbols.txt || {
             printf 'Mali external loader helper missing from shared-library dynamic exports\\n' >&2
             exit 1
           }
