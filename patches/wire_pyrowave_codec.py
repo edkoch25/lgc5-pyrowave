@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Wire experimental codec selection to Aurora without changing the default path.
 
-PyroWave is intentionally disabled until a video renderer is connected.
+PyroWave is opt-in for a controlled LG C5 CPU playback test.
 Set PYROWAVE_RENDERER_READY to 1 only when that renderer is implemented.
 """
 from pathlib import Path
@@ -11,7 +11,7 @@ needle='    if (video_cap.codecs & SS4S_VIDEO_H264) {'
 assert s.count(needle)==1
 s=s.replace(needle,'''    /* PyroWave is a distinct codec, not HEVC. Never negotiate it until
      * the decoder and presentation callbacks are installed. */
-#define PYROWAVE_RENDERER_READY 0
+#define PYROWAVE_RENDERER_READY 1
     if (app_config->pyrowave_enabled) {
 #if PYROWAVE_RENDERER_READY
         config->stream.supportedVideoFormats = VIDEO_FORMAT_PYROWAVE;

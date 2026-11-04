@@ -25,13 +25,14 @@ once('    SS4S_VideoInfo info;','''    if (videoFormat == VIDEO_FORMAT_PYROWAVE)
         pyrowave_bridge.present_cpu_frame=lgc5_pw_sdl_present;
         pyrowave_bridge.present_userdata=&pyrowave_renderer;
         pyrowave_active=true;
-        commons_log_info("Session","PyroWave frame ingress initialized (%dx%d); presentation pending",width,height);
+        commons_log_info("Session","PyroWave CPU playback test initialized (%dx%d)",width,height);
         return 0;
     }
 
     SS4S_VideoInfo info;''')
 once('    SS4S_PlayerVideoClose(player);','''    if (pyrowave_active) {
         lgc5_pw_bridge_close(&pyrowave_bridge);
+        lgc5_pw_sdl_close(&pyrowave_renderer);
         pyrowave_active=false;
     } else {
         SS4S_PlayerVideoClose(player);
