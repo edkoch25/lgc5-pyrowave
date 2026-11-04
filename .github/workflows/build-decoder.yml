@@ -74,7 +74,7 @@ jobs:
           start = code.index("pyrowave_result pyrowave_create_device_by_compat(")
           end = code.index("pyrowave_result pyrowave_create_default_device(", start)
           body = code[start:end]
-          assert body.count("return PYROWAVE_ERROR_NO_VULKAN;") == 4
+          assert body.count("return PYROWAVE_ERROR_NO_VULKAN;") == 5
           assert body.count("if (!Context::init_loader(nullptr))") == 1
           assert body.count("if (!dev->context.init_instance(nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))") == 1
           assert body.count("if (!selected_gpu)") == 1
