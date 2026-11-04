@@ -23,7 +23,7 @@ typedef struct lgc5_pw_cpu_buffer {
     int width, height, format;
 } lgc5_pw_cpu_buffer;
 typedef struct {
-    void *library, *device, *decoder;
+    void *library, *cpp_runtime, *device, *decoder;
     int (*create_device)(void **);
     void (*destroy_device)(void *);
     bool (*prefers_fragment)(void *);
@@ -47,23 +47,44 @@ static inline void lgc5_pw_bridge_close(lgc5_pw_bridge *b) {
     if (b->decoder && b->destroy_decoder) b->destroy_decoder(b->decoder);
     if (b->device && b->destroy_device) b->destroy_device(b->device);
     if (b->library) dlclose(b->library);
+    if (b->cpp_runtime) dlclose(b->cpp_runtime);
     memset(b,0,sizeof(*b));
 }
 static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsigned height) {
     if (!b || !width || !height || (width&1u) || (height&1u)) return false;
     memset(b,0,sizeof(*b));
+    /* Load the bundled C++ runtime first: the TV system copy may be older.
+     * Keep its handle alive until after the decoder is unloaded. */
+    const char *cpp_path="/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libstdc++.so.6";
+    dlerror();
+    b->cpp_runtime=dlopen(cpp_path,RTLD_NOW|RTLD_GLOBAL);
+    if (b->cpp_runtime) {
+        lgc5_pw_diag("C++ runtime loaded: %s",cpp_path);
+    } else {
+        const char *err=dlerror();
+        lgc5_pw_diag("C++ runtime load failed: %s",err ? err : "unknown");
+    }
     const char *paths[] = {
-        "lib/pyrowave/libpyrowave-shared.so.0",
-        "lib/pyrowave/libpyrowave-shared.so.0.6.0",
         "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0",
-        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0.6.0"
+        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0.6.0",
+        "lib/pyrowave/libpyrowave-shared.so.0",
+        "lib/pyrowave/libpyrowave-shared.so.0.6.0"
     };
     for (unsigned i=0;i<sizeof(paths)/sizeof(paths[0]);++i) {
+        dlerror();
         b->library=dlopen(paths[i],RTLD_NOW|RTLD_LOCAL);
-        if (b->library) break;
+        if (b->library) {
+            lgc5_pw_diag("decoder dlopen succeeded: %s",paths[i]);
+            break;
+        }
+        const char *err=dlerror();
+        lgc5_pw_diag("decoder dlopen attempt %u (%s) failed: %s",
+                     i,paths[i],err ? err : "unknown");
     }
-    if (!b->library) { lgc5_pw_diag("dlopen failed: %s",dlerror()); goto fail; }
-    lgc5_pw_diag("decoder library loaded");
+    if (!b->library) {
+        lgc5_pw_diag("decoder load exhausted all paths");
+        goto fail;
+    }
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
     *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
