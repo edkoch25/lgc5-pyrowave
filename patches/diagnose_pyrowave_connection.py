@@ -14,4 +14,5 @@ once('    int startResult = LiStartConnection(&server->serverInfo, &session->con
 once('    if (startResult != 0) {','    lgc5_pw_diag("LiStartConnection result=%d streaming_errno=%d",startResult,streaming_errno);\n    if (startResult != 0) {')
 once('    session_set_state(session, STREAMING_STREAMING);','    lgc5_pw_diag("LiStartConnection succeeded");\n    session_set_state(session, STREAMING_STREAMING);')
 p.write_text(s)
+(Path("aurora/src/app/stream")/"pyrowave_diag.h").write_bytes(Path("src/pyrowave_diag.h").read_bytes())
 print("Instrumented PyroWave session worker")
