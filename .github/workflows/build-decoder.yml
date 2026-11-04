@@ -2,6 +2,9 @@ name: Build PyroWave ARM32 decoder
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - development/pyrowave-decoder
 
 permissions:
   contents: read
