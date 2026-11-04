@@ -116,6 +116,18 @@ jobs:
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe stage/pyrowave_frame_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
           test -f stage/lib/libpyrowave-shared.so.0.6.0
+          # Verify the exact runtime entrypoints used by the Aurora bridge.
+          readelf -Ws stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-symbols.txt
+          for symbol in pyrowave_get_api_version pyrowave_create_default_device \
+            pyrowave_device_destroy pyrowave_decoder_device_prefers_fragment_path \
+            pyrowave_decoder_create pyrowave_decoder_destroy pyrowave_decoder_clear \
+            pyrowave_decoder_push_packet pyrowave_decoder_decode_is_ready; do
+            grep -Eq "[[:space:]]${symbol}$" /tmp/pyrowave-symbols.txt || {
+              printf 'Missing required PyroWave symbol: %s\\n' "$symbol" >&2
+              exit 1
+            }
+          done
+
 
       - name: Download webOS packaging CLI
         uses: robinraju/release-downloader@v1.9

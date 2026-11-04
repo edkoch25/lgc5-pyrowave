@@ -12,7 +12,7 @@ typedef struct {
 } lgc5_pw_decoder_info;
 typedef struct {
     void *library, *device, *decoder;
-    int (*create_device)(unsigned, unsigned, const void *, const void *, const void *, void **);
+    int (*create_device)(void **);
     void (*destroy_device)(void *);
     bool (*prefers_fragment)(void *);
     int (*create_decoder)(const lgc5_pw_decoder_info *, void **);
@@ -44,7 +44,7 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     }
     if (!b->library) goto fail;
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
-    *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_device_by_compat");
+    *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
     *(void **)(&b->prefers_fragment)=dlsym(b->library,"pyrowave_decoder_device_prefers_fragment_path");
     *(void **)(&b->create_decoder)=dlsym(b->library,"pyrowave_decoder_create");
@@ -58,7 +58,7 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     unsigned major=0,minor=0,patch=0;
     b->api_version(&major,&minor,&patch);
     if (major!=0 || minor!=6) goto fail;
-    if (b->create_device(0,0,NULL,NULL,NULL,&b->device)!=0 || !b->device) goto fail;
+    if (b->create_device(&b->device)!=0 || !b->device) goto fail;
     lgc5_pw_decoder_info info={b->device,(int)width,(int)height,0,b->prefers_fragment(b->device)};
     if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) goto fail;
     b->ingress.decoder=b->decoder;
