@@ -122,10 +122,11 @@ jobs:
           cd aurora
           git checkout --detach "${AURORA_COMMIT}"
           git submodule update --init --recursive
-          # Use the PyroWave-aware Moonlight transport implementation for this isolated test build.
-          # Keep the original Aurora checkout and all other submodules pinned.
-          git -C core/moonlight-common-c fetch --depth=1 https://github.com/Nonary/moonlight-common-c.git e41355ea01670fd4c830b384009d31dd0339a705
-          git -C core/moonlight-common-c checkout --detach FETCH_HEAD
+          # Replace only the Moonlight transport submodule with a clean pinned checkout.
+          # Avoid reusing Aurora's nested Git metadata for a different submodule graph.
+          rm -rf core/moonlight-common-c
+          git clone https://github.com/Nonary/moonlight-common-c.git core/moonlight-common-c
+          git -C core/moonlight-common-c checkout --detach e41355ea01670fd4c830b384009d31dd0339a705
           git -C core/moonlight-common-c submodule update --init --recursive
           test -f core/moonlight-common-c/nanors/rs.c
           cd ..
