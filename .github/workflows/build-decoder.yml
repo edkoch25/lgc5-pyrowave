@@ -109,7 +109,10 @@ jobs:
           body = body.replace("if (!selected_gpu)",
                               'lgc5_pw_vulkan_trace("GPU init_device loop ended", selected_gpu ? 1 : 0);\\n\\tif (!selected_gpu)')
           assert 'GPU init_device begin' in body and 'GPU apiVersion' in body
-          code = "#include <stdio.h>\\n" + code[:start] + prefix + body + code[end:]
+          # Convert literal escape sequences inserted by the patch to real C++ line breaks.
+          body = body.replace(chr(92) + "n", chr(10)).replace(chr(92) + "t", chr(9))
+          code = "#include <stdio.h>" + chr(10) + code[:start] + prefix + body + code[end:]
+          assert not any(chr(92) + "n" in line for line in body.splitlines() if "lgc5_pw_vulkan_trace(" in line and "fprintf" not in line)
           assert code.count("pyrowave_result pyrowave_create_default_device(") == 1
           assert "pyrowave Vulkan: %s" in code
           api.write_text(code)
