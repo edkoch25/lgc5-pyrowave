@@ -52,14 +52,16 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     if (!b || !width || !height || (width&1u) || (height&1u)) return false;
     memset(b,0,sizeof(*b));
     const char *paths[] = {
+        "lib/pyrowave/libpyrowave-shared.so.0",
         "lib/pyrowave/libpyrowave-shared.so.0.6.0",
+        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0",
         "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0.6.0"
     };
     for (unsigned i=0;i<sizeof(paths)/sizeof(paths[0]);++i) {
         b->library=dlopen(paths[i],RTLD_NOW|RTLD_LOCAL);
         if (b->library) break;
     }
-    if (!b->library) goto fail;
+    if (!b->library) { fprintf(stderr, "PyroWave: dlopen failed: %s\n", dlerror()); goto fail; }
     *(void **)(&b->api_version)=dlsym(b->library,"pyrowave_get_api_version");
     *(void **)(&b->create_device)=dlsym(b->library,"pyrowave_create_default_device");
     *(void **)(&b->destroy_device)=dlsym(b->library,"pyrowave_device_destroy");
