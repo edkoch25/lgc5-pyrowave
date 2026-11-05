@@ -32,7 +32,7 @@ replace_once("src/app/ui/settings/panes/experimental.pane.c",
              '    pref_desc_label(view, "Experimental CPU playback test; disable to restore native HEVC.", false);')
 replace_once("src/app/stream/video/session_video.c",
              '    SS4S_VideoInfo info;',
-             '    if (app_configuration && app_configuration->pyrowave_enabled) {\n'
+             '    if (app_configuration && app_configuration->pyrowave_enabled && videoFormat != VIDEO_FORMAT_PYROWAVE) {\n'
              '        commons_log_warn("Session", "PyroWave selected, but stream integration is not yet available; using native LG decoder");\n'
              '    }\n\n    SS4S_VideoInfo info;')
 print("Applied PyroWave settings toggle and explicit native-decoder fallback.")
