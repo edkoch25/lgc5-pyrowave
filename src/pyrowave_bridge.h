@@ -171,12 +171,20 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
             dlclose(mali);
         }
     }
+    /* Mali-G57 precision diagnostic: force full FP32 before PyroWave initializes. */
+    if (setenv("PYROWAVE_PRECISION","2",1)!=0) {
+        lgc5_pw_diag("PYROWAVE_PRECISION setenv failed");
+        goto fail;
+    }
+    lgc5_pw_diag("PyroWave precision=2 (FP32) requested");
     lgc5_pw_diag("Vulkan device init begin");
     int device_result=b->create_device(&b->device);
     lgc5_pw_diag("Vulkan device init result=%d device=%d",device_result,!!b->device);
     if (device_result!=0 || !b->device) { lgc5_pw_diag("Vulkan device init failed"); goto fail; }
     lgc5_pw_diag("Vulkan device ready");
-    lgc5_pw_decoder_info info={b->device,(int)width,(int)height,0,b->prefers_fragment(b->device)};
+    bool fragment_path=b->prefers_fragment(b->device);
+    lgc5_pw_diag("decoder profile precision=2 (FP32) fragment_path=%d",fragment_path);
+    lgc5_pw_decoder_info info={b->device,(int)width,(int)height,0,fragment_path};
     if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) { lgc5_pw_diag("decoder create failed"); goto fail; }
     lgc5_pw_diag("decoder ready %ux%u",width,height);
     b->ingress.decoder=b->decoder;
