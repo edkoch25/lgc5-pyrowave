@@ -10,6 +10,7 @@ int main(void) {
     lgc5_pw_records r;
     assert(lgc5_pw_records_init(&r,frame,sizeof(frame),3200,1800));
     const uint8_t *p; size_t n;
+    assert(lgc5_pw_records_next(&r,&p,&n)==1 && p==frame && n==8);
     assert(lgc5_pw_records_next(&r,&p,&n)==1 && p==frame+8 && n==8);
     assert(lgc5_pw_records_next(&r,&p,&n)==0);
     assert(!lgc5_pw_records_init(&r,frame,sizeof(frame),3840,2160));
