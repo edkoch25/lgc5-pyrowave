@@ -230,6 +230,26 @@ static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, s
         output.format=1; /* PYROWAVE_CPU_BUFFER_FORMAT_YUV420P */
         int decode_rc=b->decode_cpu(b->decoder,&output);
         if (decode_rc==0) {
+            /* Verify that GPU readback actually changes after decoding.
+             * The 8-bit Y/U/V samples are read before SDL can modify them. */
+            if (pw_submits<=3 || pw_submits%120==0) {
+                const unsigned char *base=b->cpu_planes;
+                size_t plane_offset[3]={0,y,y+y/4};
+                size_t plane_len[3]={y,y/4,y/4};
+                for (unsigned k=0;k<3;++k) {
+                    unsigned long hash=2166136261ul;
+                    unsigned minv=255,maxv=0;
+                    unsigned long sum=0;
+                    for (unsigned n=0;n<256;++n) {
+                        unsigned char v=base[plane_offset[k]+(plane_len[k]-1)*n/255];
+                        if(v<minv)minv=v;
+                        if(v>maxv)maxv=v;
+                        sum+=v; hash=(hash ^ v)*16777619ul;
+                    }
+                    lgc5_pw_diag("readback plane=%c frame=%lu min=%u max=%u mean=%lu hash=%08lx",
+                        k==0?'Y':k==1?'U':'V',pw_submits,minv,maxv,sum/256,hash & 0xfffffffful);
+                }
+            }
             ++pw_decoded;
             presented=b->present_cpu_frame(b->present_userdata,&output);
         }

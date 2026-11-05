@@ -88,17 +88,37 @@ static inline bool lgc5_pw_sdl_present(void *userdata,const lgc5_pw_cpu_buffer *
     lgc5_pw_sdl_renderer *p=(lgc5_pw_sdl_renderer *)userdata;
     if (!p || !frame || !p->texture || frame->width!=(int)p->width ||
         frame->height!=(int)p->height || frame->format!=1) return false;
-    /* #58: isolate SDL IYUV conversion from PyroWave output.
+    /* #59: retain isolated SDL/YUV diagnostics and extend luma observation.
      * 0-59: known-good SDL RGB magenta
      * 60-119: generated YUV420 color bars through SDL_UpdateYUVTexture
-     * 120-179: decoded Y with neutral U/V (luma-only)
-     * 180+: untouched decoded YUV420P */
-    const unsigned phase=p->frames<60 ? 0 : p->frames<120 ? 1 : p->frames<180 ? 2 : 3;
+     * 120-359: decoded Y with neutral U/V (luma-only)
+     * 360+: untouched decoded YUV420P */
+    const unsigned phase=p->frames<60 ? 0 : p->frames<120 ? 1 : p->frames<360 ? 2 : 3;
     const Uint8 *y=(const Uint8 *)frame->data[0];
     const Uint8 *u=(const Uint8 *)frame->data[1];
     const Uint8 *v=(const Uint8 *)frame->data[2];
     if (!y || !u || !v) return false;
     if (p->frames<3 || p->frames%120==0) {
+        /* Sample each decoded plane across the entire image, not just the
+         * center. Neutral chroma at one pixel proves nothing about the rest. */
+        for (unsigned plane=0;plane<3;++plane) {
+            const Uint8 *src=(const Uint8 *)frame->data[plane];
+            const size_t pitch=frame->row_stride_in_bytes[plane];
+            const unsigned w=plane ? p->width/2 : p->width;
+            const unsigned h=plane ? p->height/2 : p->height;
+            unsigned minv=255,maxv=0,neutral=0;
+            unsigned long sum=0,hash=2166136261u;
+            for (unsigned gy=0;gy<16;++gy) for(unsigned gx=0;gx<16;++gx) {
+                unsigned v=src[(size_t)(gy*(h-1)/15)*pitch+(gx*(w-1)/15)];
+                if(v<minv)minv=v;
+                if(v>maxv)maxv=v;
+                if(v>=126 && v<=130)neutral++;
+                sum+=v; hash=(hash ^ v)*16777619u;
+            }
+            lgc5_pw_diag("plane stats frame=%lu phase=%u plane=%c min=%u max=%u mean=%lu neutral=%u/256 hash=%08lx",
+                p->frames,phase,plane==0?'Y':plane==1?'U':'V',
+                minv,maxv,sum/256,neutral,hash & 0xfffffffful);
+        }
         size_t mid=(size_t)(p->height/2)*frame->row_stride_in_bytes[0]+p->width/2;
         size_t chroma=(size_t)(p->height/4)*frame->row_stride_in_bytes[1]+p->width/4;
         lgc5_pw_diag("SDL decoded frame=%lu phase=%u stride=%zu/%zu/%zu sizes=%zu/%zu/%zu Y=%u,%u,%u U=%u V=%u",
@@ -134,7 +154,7 @@ static inline bool lgc5_pw_sdl_present(void *userdata,const lgc5_pw_cpu_buffer *
         return false;
     }
     if (p->frames==0 || p->frames==59 || p->frames==60 || p->frames==119 ||
-        p->frames==120 || p->frames==179 || p->frames==180)
+        p->frames==120 || p->frames==359 || p->frames==360)
         lgc5_pw_diag("SDL diagnostic frame=%lu phase=%u (0=magenta 1=bars 2=luma 3=decoded)",
                      p->frames,phase);
     SDL_RenderPresent(p->renderer);
