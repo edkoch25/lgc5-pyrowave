@@ -180,6 +180,7 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
     if (b->create_decoder(&info,&b->decoder)!=0 || !b->decoder) { lgc5_pw_diag("decoder create failed"); goto fail; }
     lgc5_pw_diag("decoder ready %ux%u",width,height);
     b->ingress.decoder=b->decoder;
+    b->ingress.clear=b->clear_decoder;
     b->width=width; b->height=height;
     lgc5_pw_diag("decoder clear begin");
     b->clear_decoder(b->decoder);
