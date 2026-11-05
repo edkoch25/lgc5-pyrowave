@@ -11,6 +11,7 @@ typedef struct {
     size_t size, offset;
     uint32_t sequence_header;
     uint32_t total_blocks;
+    unsigned width, height;
     unsigned blocks, sequence_headers;
     bool have_sequence, invalid;
 } lgc5_pw_records;
@@ -25,8 +26,8 @@ static inline bool lgc5_pw_records_init(lgc5_pw_records *r, const void *data,
     r->frame = (const uint8_t *)data;
     r->size = size;
     r->offset = 0;
-    (void)width;
-    (void)height;
+    r->width = width;
+    r->height = height;
     return true;
 }
 /* Returns 1 for a block, 0 for end, -1 for malformed input.
@@ -50,8 +51,8 @@ static inline int lgc5_pw_records_next(lgc5_pw_records *r,
         }
         if (a & 0x80000000u) {
             uint32_t flags = b;
-            if (((a & 0x3fffu) + 1) != width ||
-                (((a >> 14) & 0x3fffu) + 1) != height ||
+            if (((a & 0x3fffu) + 1) != r->width ||
+                (((a >> 14) & 0x3fffu) + 1) != r->height ||
                 ((flags >> 24) & 3u) != 0 || ((flags >> 26) & 1u)) goto invalid;
             if (r->have_sequence &&
                 ((a >> 28) & 7u) != ((r->sequence_header >> 28) & 7u)) goto invalid;
