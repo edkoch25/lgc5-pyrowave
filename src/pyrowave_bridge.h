@@ -231,6 +231,22 @@ static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, s
         output.format=1; /* PYROWAVE_CPU_BUFFER_FORMAT_YUV420P */
         int decode_rc=b->decode_cpu(b->decoder,&output);
         if (decode_rc==0) {
+            /* Capture one untouched decoded frame before SDL sees it.
+             * The file is raw, tightly packed YUV420P: Y, U, then V. */
+            static bool capture_attempted=false;
+            if (!capture_attempted && pw_submits>=120) {
+                capture_attempted=true;
+                const char *path="/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/cache/pyrowave-frame-1920x1080.yuv";
+                FILE *capture=fopen(path,"wb");
+                if (capture) {
+                    size_t written=fwrite(b->cpu_planes,1,bytes,capture);
+                    int close_rc=fclose(capture);
+                    lgc5_pw_diag("YUV capture path=%s bytes=%zu expected=%zu close_rc=%d",
+                                 path,written,bytes,close_rc);
+                } else {
+                    lgc5_pw_diag("YUV capture failed: %s",path);
+                }
+            }
             /* Verify that GPU readback actually changes after decoding.
              * The 8-bit Y/U/V samples are read before SDL can modify them. */
             if (pw_submits<=3 || pw_submits%120==0) {
