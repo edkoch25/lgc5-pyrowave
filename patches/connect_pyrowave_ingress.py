@@ -17,7 +17,13 @@ once('    SS4S_VideoInfo info;','''    if (videoFormat == VIDEO_FORMAT_PYROWAVE)
             free(buffer); buffer=NULL;
             return CALLBACKS_SESSION_ERROR_VDEC_UNSUPPORTED;
         }
-        if (!lgc5_pw_sdl_open(&pyrowave_renderer,(unsigned)width,(unsigned)height)) {
+        /* Aurora's webOS window is the compositor-registered surface.
+         * Release the LVGL renderer on the UI thread, retaining its window,
+         * before creating the PyroWave diagnostic renderer on that window. */
+        app_t *app=session->app;
+        app_bus_post_sync(app,(bus_actionfunc)app_ui_close,&app->ui);
+        lgc5_pw_diag("Aurora UI closed for PyroWave window reuse window=%p",(void *)app->ui.window);
+        if (!lgc5_pw_sdl_open(&pyrowave_renderer,app->ui.window,(unsigned)width,(unsigned)height)) {
             commons_log_error("Session","PyroWave SDL video renderer initialization failed: %s",SDL_GetError());
             lgc5_pw_bridge_close(&pyrowave_bridge);
             free(buffer); buffer=NULL;

@@ -9,6 +9,7 @@
 #include "pyrowave_bridge.h"
 typedef struct {
     SDL_Window *window;
+    bool owns_window;
     SDL_Renderer *renderer;
     SDL_Texture *texture;
     unsigned width, height;
@@ -18,18 +19,20 @@ static inline void lgc5_pw_sdl_close(lgc5_pw_sdl_renderer *p) {
     if (!p) return;
     if (p->texture) SDL_DestroyTexture(p->texture);
     if (p->renderer) SDL_DestroyRenderer(p->renderer);
-    if (p->window) SDL_DestroyWindow(p->window);
+    if (p->window && p->owns_window) SDL_DestroyWindow(p->window);
     memset(p,0,sizeof(*p));
 }
-static inline bool lgc5_pw_sdl_open(lgc5_pw_sdl_renderer *p,unsigned width,unsigned height) {
+static inline bool lgc5_pw_sdl_open(lgc5_pw_sdl_renderer *p,SDL_Window *existing_window,unsigned width,unsigned height) {
     if (!p || !width || !height || (width&1u) || (height&1u)) return false;
     memset(p,0,sizeof(*p));
-    lgc5_pw_diag("SDL window create begin");
-    p->window=SDL_CreateWindow("PyroWave video",SDL_WINDOWPOS_CENTERED,
-                                SDL_WINDOWPOS_CENTERED,(int)width,(int)height,
-                                SDL_WINDOW_SHOWN|SDL_WINDOW_FULLSCREEN_DESKTOP);
-    if (!p->window) { lgc5_pw_diag("SDL window failed: %s",SDL_GetError()); goto fail; }
-    lgc5_pw_diag("SDL window create complete");
+    if (!existing_window) {
+        lgc5_pw_diag("SDL existing Aurora window missing");
+        return false;
+    }
+    p->window=existing_window;
+    p->owns_window=false;
+    SDL_ShowWindow(p->window);
+    lgc5_pw_diag("SDL using Aurora window=%p", (void *)p->window);
     lgc5_pw_diag("SDL renderer create begin");
     p->renderer=SDL_CreateRenderer(p->window,-1,SDL_RENDERER_ACCELERATED);
     if (!p->renderer) { lgc5_pw_diag("SDL renderer failed: %s",SDL_GetError()); goto fail; }
