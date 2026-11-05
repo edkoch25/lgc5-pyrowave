@@ -10,8 +10,9 @@ typedef struct {
     const uint8_t *frame;
     size_t size, offset;
     uint32_t sequence_header;
-    unsigned blocks;
-    bool invalid;
+    uint32_t total_blocks;
+    unsigned blocks, sequence_headers;
+    bool have_sequence, invalid;
 } lgc5_pw_records;
 static inline uint32_t lgc5_pw_le32(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1]<<8) | ((uint32_t)p[2]<<16) | ((uint32_t)p[3]<<24);
@@ -23,14 +24,9 @@ static inline bool lgc5_pw_records_init(lgc5_pw_records *r, const void *data,
     memset(r, 0, sizeof(*r));
     r->frame = (const uint8_t *)data;
     r->size = size;
-    r->offset = 8;
-    uint32_t header = lgc5_pw_le32(r->frame);
-    r->sequence_header = header;
-    uint32_t flags = lgc5_pw_le32(r->frame + 4);
-    if (!(header & 0x80000000u) ||
-        ((header & 0x3fffu) + 1) != width ||
-        (((header >> 14) & 0x3fffu) + 1) != height ||
-        ((flags >> 24) & 3u) != 0 || ((flags >> 26) & 1u)) return false;
+    r->offset = 0;
+    (void)width;
+    (void)height;
     return true;
 }
 /* Returns 1 for a block, 0 for end, -1 for malformed input.
@@ -52,9 +48,25 @@ static inline int lgc5_pw_records_next(lgc5_pw_records *r,
             r->offset += 8 + words*4;
             continue;
         }
+        if (a & 0x80000000u) {
+            uint32_t flags = b;
+            if (((a & 0x3fffu) + 1) != width ||
+                (((a >> 14) & 0x3fffu) + 1) != height ||
+                ((flags >> 24) & 3u) != 0 || ((flags >> 26) & 1u)) goto invalid;
+            if (r->have_sequence &&
+                ((a >> 28) & 7u) != ((r->sequence_header >> 28) & 7u)) goto invalid;
+            r->sequence_header = a;
+            r->total_blocks = flags & 0x00ffffffu;
+            r->have_sequence = true;
+            ++r->sequence_headers;
+            *block = p; *length = 8;
+            r->offset += 8;
+            return 1;
+        }
         size_t bytes = (size_t)((a >> 16) & 0xfffu) * 4;
-        if ((a & 0x80000000u) || bytes < 8 || bytes > remaining ||
-            ((a >> 28) & 7u) != ((r->sequence_header >> 28) & 7u)) break;
+        if (bytes < 8 || bytes > remaining) goto invalid;
+        if (r->have_sequence &&
+            ((a >> 28) & 7u) != ((r->sequence_header >> 28) & 7u)) goto invalid;
         *block = p; *length = bytes;
         r->offset += bytes;
         ++r->blocks;
