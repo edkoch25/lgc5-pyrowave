@@ -36,3 +36,12 @@ replace_once("src/app/stream/video/session_video.c",
              '        commons_log_warn("Session", "PyroWave selected, but stream integration is not yet available; using native LG decoder");\n'
              '    }\n\n    SS4S_VideoInfo info;')
 print("Applied PyroWave settings toggle and explicit native-decoder fallback.")
+
+# Isolated test-app default: 50 Mbps rather than Aurora's upstream 300 Mbps.
+# Existing 300 Mbps settings from earlier test builds are migrated on read.
+replace_once("src/app/app_settings.c",
+             "#define BITRATE_300_MBPS 300000",
+             "#define BITRATE_300_MBPS 50000")
+replace_once("src/app/app_settings.c",
+             "    if (ret == 0) {\n        settings_reconcile_refresh_rate(config);\n    }",
+             "    if (ret == 0) {\n        settings_reconcile_refresh_rate(config);\n        if (config->stream.bitrate == 300000) config->stream.bitrate = 50000;\n    }")

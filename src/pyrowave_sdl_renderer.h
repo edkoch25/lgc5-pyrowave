@@ -140,7 +140,7 @@ static inline bool lgc5_pw_sdl_present(void *userdata,const lgc5_pw_cpu_buffer *
     SDL_RenderPresent(p->renderer);
     if (p->frames==0 || p->frames==59 || p->frames==60)
         lgc5_pw_diag("SDL diagnostic display frame=%lu mode=%s window_flags=0x%x",
-            p->frames,diagnostic_color ? "magenta" : "decoded",SDL_GetWindowFlags(p->window));
+            p->frames,phase==0 ? "magenta" : "decoded",SDL_GetWindowFlags(p->window));
     p->frames++;
     return true;
 }
