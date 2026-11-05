@@ -24,3 +24,12 @@
 4. Keep compatibility fixes gated by measured C5 capabilities. No speculative Vulkan fallbacks or unrelated runtime/toolchain changes.
 5. Preserve the isolated `com.pyrowave.lgc5.test` app and avoid modifying system libraries on the TV.
 6. Progress through loader → instance → physical device → logical device/features → decoder → frame rendering → playback performance. Record the first failing stage.
+
+
+## Build #63: Mali-G57 FP32 diagnostic
+
+- Set `PYROWAVE_PRECISION=2` before PyroWave device/decoder initialization. Upstream defines precision 2 as full FP32 wavelet storage; precision 0 uses FP16 and precision 1 uses mixed FP16/FP32.
+- Keep PyroWave's automatic fragment-path selection unchanged and log the selected value. The upstream decoder documents fragment decoding as the preferred path for mobile GPUs with weak compute support.
+- Keep the existing CPU-buffer readback and SDL presentation unchanged for this controlled test. This isolates precision from presentation-path changes.
+- Compare the resulting TV image and diagnostic log with Build #62. If corruption remains, do not assume the CPU-buffer path is the cause; proceed to a separate native GPU-buffer presentation experiment.
+- This is a diagnostic build, not a final performance configuration. FP32 may increase GPU memory use and processing cost.
