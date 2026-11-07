@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 /* Offline PyroWave 8-bit 4:2:0 decoder test.
  * Accepts a complete Vibepollo record-framed frame; never alters TV services.
  * Usage: pyrowave_frame_probe <width> <height> <frame.bin> <libpyrowave.so> [output.yuv]
