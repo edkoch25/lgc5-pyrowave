@@ -66,10 +66,10 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
         lgc5_pw_diag("C++ runtime load failed: %s",err ? err : "unknown");
     }
     const char *paths[] = {
-        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0",
-        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.0.6.0",
-        "lib/pyrowave/libpyrowave-shared.so.0",
-        "lib/pyrowave/libpyrowave-shared.so.0.6.0"
+        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.1",
+        "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/lib/pyrowave/libpyrowave-shared.so.1.0.0",
+        "lib/pyrowave/libpyrowave-shared.so.1",
+        "lib/pyrowave/libpyrowave-shared.so.1.0.0"
     };
     for (unsigned i=0;i<sizeof(paths)/sizeof(paths[0]);++i) {
         dlerror();
@@ -103,8 +103,8 @@ static inline bool lgc5_pw_bridge_open(lgc5_pw_bridge *b, unsigned width, unsign
         !b->ingress.push || !b->ingress.ready || !b->decode_cpu) goto fail;
     unsigned major=0,minor=0,patch=0;
     b->api_version(&major,&minor,&patch);
-    lgc5_pw_diag("decoder ABI %u.%u.%u",major,minor,patch);
-    if (major!=0 || minor!=6) goto fail;
+    lgc5_pw_diag("decoder ABI %u.%u.%u (upstream API 1.0)",major,minor,patch);
+    if (major!=1 || minor!=0) goto fail;
     /* Granite's supported external loader entrypoint avoids libvulkan.so discovery. */
     void *mali_loader=dlopen("/usr/lib/libmali.so",RTLD_NOW|RTLD_LOCAL);
     if (!mali_loader) {

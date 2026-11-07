@@ -111,8 +111,8 @@ jobs:
                               'lgc5_pw_vulkan_trace("instance ready", 1);\\n\\tuint32_t count;')
           body = body.replace("std::vector<VkPhysicalDevice> gpus(count);",
                               'lgc5_pw_vulkan_trace("GPU count", (int)count);\\n\\tstd::vector<VkPhysicalDevice> gpus(count);')
-          body = body.replace("if (props.apiVersion < VK_API_VERSION_1_2)",
-                              'lgc5_pw_vulkan_trace("GPU apiVersion", (int)props.apiVersion);\\n\\t\tif (props.apiVersion < VK_API_VERSION_1_2)')
+          body = body.replace("if (props.apiVersion < VK_API_VERSION_1_1)",
+                              'lgc5_pw_vulkan_trace("GPU apiVersion", (int)props.apiVersion);\\n\\t\\tlgc5_pw_vulkan_trace("GPU vendorID", (int)props.vendorID);\\n\\t\\tlgc5_pw_vulkan_trace("GPU deviceID", (int)props.deviceID);\\n\\t\\tlgc5_pw_vulkan_trace("Vulkan 1.2 core level", props.apiVersion >= VK_API_VERSION_1_2);\\n\\t\\tlgc5_pw_vulkan_trace("Vulkan 1.3 core level", props.apiVersion >= VK_API_VERSION_1_3);\\n\\t\tif (props.apiVersion < VK_API_VERSION_1_1)')
           body = body.replace("if (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))",
                               'lgc5_pw_vulkan_trace("GPU init_device begin", 0);\\n\\t\tif (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))')
           body = body.replace("selected_gpu = gpu;",
@@ -195,22 +195,23 @@ jobs:
             tests/pyrowave_frame_probe.c -ldl -o stage/pyrowave_frame_probe
           file stage/lib/libpyrowave-shared.so* stage/decoder_device_probe stage/vulkan_loader_probe stage/pyrowave_frame_probe
           readelf -h stage/decoder_device_probe | grep -E 'Class:|Machine:'
-          test -f stage/lib/libpyrowave-shared.so.0.6.0
+          test -f stage/lib/libpyrowave-shared.so.1.0.0
+          test -f stage/lib/libpyrowave-shared.so.1
           # The C5 provides GLIBCXX only through 3.4.29; reject dynamic C++ runtime dependencies.
-          readelf -d stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-dynamic.txt
+          readelf -d stage/lib/libpyrowave-shared.so.1.0.0 > /tmp/pyrowave-dynamic.txt
           cat /tmp/pyrowave-dynamic.txt
           if grep -E 'NEEDED.*\[(libstdc\+\+|libgcc_s)\.so' /tmp/pyrowave-dynamic.txt; then
             printf 'PyroWave still depends on a dynamic C++/GCC runtime\n' >&2
             exit 1
           fi
           # The webOS bridge resolves this helper with dlsym: it must be globally exported.
-          readelf --dyn-syms --wide stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-dynsymbols.txt
+          readelf --dyn-syms --wide stage/lib/libpyrowave-shared.so.1.0.0 > /tmp/pyrowave-dynsymbols.txt
           grep -Eq '[[:space:]]GLOBAL[[:space:]]+DEFAULT[[:space:]]+[0-9]+[[:space:]]+pyrowave_lgc5_init_vulkan_loader$' /tmp/pyrowave-dynsymbols.txt || {
             printf 'Mali external loader helper missing from shared-library dynamic exports\\n' >&2
             exit 1
           }
           # Verify the exact runtime entrypoints used by the Aurora bridge.
-          readelf -Ws stage/lib/libpyrowave-shared.so.0.6.0 > /tmp/pyrowave-symbols.txt
+          readelf -Ws stage/lib/libpyrowave-shared.so.1.0.0 > /tmp/pyrowave-symbols.txt
           for symbol in pyrowave_get_api_version pyrowave_create_default_device \
             pyrowave_device_destroy pyrowave_decoder_device_prefers_fragment_path \
             pyrowave_decoder_create pyrowave_decoder_destroy pyrowave_decoder_clear \
