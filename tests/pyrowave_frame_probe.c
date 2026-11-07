@@ -50,7 +50,21 @@ int main(int argc, char **argv) {
             dlclose(lib);free(data);return 4;
         }
     }
-    setenv("PYROWAVE_PRECISION","2",1);
+    /* Override precision without changing the live test app. */
+    const char *precision=getenv("LGC5_PW_PROBE_PRECISION");
+    if(!precision || !*precision) precision="2";
+    if(strcmp(precision,"1") && strcmp(precision,"2")){
+        fprintf(stderr,"LGC5_PW_PROBE_PRECISION must be 1 or 2\\n");
+        if(mali)dlclose(mali);dlclose(lib);free(data);return 2;
+    }
+    setenv("PYROWAVE_PRECISION",precision,1);
+    const char *packet_mode=getenv("LGC5_PW_PROBE_PACKET_MODE");
+    bool combined=packet_mode && strcmp(packet_mode,"combined")==0;
+    if(packet_mode && *packet_mode && !combined && strcmp(packet_mode,"records")){
+        fprintf(stderr,"LGC5_PW_PROBE_PACKET_MODE must be records or combined\\n");
+        if(mali)dlclose(mali);dlclose(lib);free(data);return 2;
+    }
+    fprintf(stderr,"Probe settings: precision=%s packet_mode=%s\\n",precision,combined?"combined":"records");
     void *device=NULL,*decoder=NULL;
     int rc=make_device(&device);
     if(rc||!device){fprintf(stderr,"device rc=%d\n",rc);dlclose(lib);free(data);return 4;}
@@ -72,12 +86,27 @@ int main(int argc, char **argv) {
     size_t record_len=0;
     int state=0;
     unsigned packets=0;
+    unsigned char *joined=combined?malloc((size_t)n):NULL;
+    size_t joined_size=0;
+    if(combined && !joined)valid=false;
     while(valid && (state=lgc5_pw_records_next(&records,&record,&record_len))==1) {
-        rc=push(decoder,record,record_len);
-        if(rc){fprintf(stderr,"push rc=%d packet=%u\\n",rc,packets);valid=false;break;}
-        packets++;
+        if(combined){
+            if(record_len>(size_t)n-joined_size){valid=false;break;}
+            memcpy(joined+joined_size,record,record_len);
+            joined_size+=record_len;
+        }else{
+            rc=push(decoder,record,record_len);
+            if(rc){fprintf(stderr,"push rc=%d packet=%u\\n",rc,packets);valid=false;break;}
+            packets++;
+        }
     }
     if(state!=0)valid=false;
+    if(valid && combined){
+        rc=push(decoder,joined,joined_size);
+        if(rc){fprintf(stderr,"combined push rc=%d size=%zu\\n",rc,joined_size);valid=false;}
+        else packets=1;
+    }
+    free(joined);
     if(valid && ready(decoder,false)){
         size_t y=(size_t)w*h,c=y/4;
         unsigned char *planes=calloc(1,y+2*c);
