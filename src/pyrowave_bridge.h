@@ -15,7 +15,7 @@ typedef struct {
     int width, height, chroma;
     bool fragment_path;
 } lgc5_pw_decoder_info;
-/* Mirrors pyrowave_cpu_buffer (0.6 ABI), with 8-bit planar YUV420. */
+/* Mirrors pyrowave_cpu_buffer (1.0 ABI), with 8-bit planar YUV420. */
 typedef struct lgc5_pw_cpu_buffer {
     void *data[3];
     size_t row_stride_in_bytes[3];

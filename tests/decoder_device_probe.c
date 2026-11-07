@@ -18,7 +18,7 @@ typedef _Bool (*prefers_fragment_fn)(void *);
 typedef void (*decoder_destroy_fn)(void *);
 
 int main(int argc, char **argv) {
-    const char *library = argc > 1 ? argv[1] : "./libpyrowave-shared.so.0";
+    const char *library = argc > 1 ? argv[1] : "./lib/libpyrowave-shared.so.1";
     void *handle = dlopen(library, RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
         fprintf(stderr, "PyroWave dlopen failed: %s\n", dlerror());
