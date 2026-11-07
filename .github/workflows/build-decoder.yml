@@ -252,9 +252,9 @@ jobs:
           from pathlib import Path
           settings = Path("aurora/src/app/app_settings.c")
           source = settings.read_text()
-          old = "#define BITRATE_300_MBPS 300000"
+          old = "#define BITRATE_300_MBPS 50000"
           new = "#define BITRATE_50_MBPS 50000"
-          assert source.count(old) == 1, "Aurora default bitrate anchor changed"
+          assert source.count(old) == 1, "Aurora 50 Mbps bitrate definition changed"
           source = source.replace(old, new)
           old = "return BITRATE_300_MBPS;"
           new = "return BITRATE_50_MBPS;"
