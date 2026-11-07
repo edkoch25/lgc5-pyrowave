@@ -113,13 +113,13 @@ jobs:
                               'lgc5_pw_vulkan_trace("GPU count", (int)count);\\n\\tstd::vector<VkPhysicalDevice> gpus(count);')
           body = body.replace("if (props.apiVersion < VK_API_VERSION_1_1)",
                               'lgc5_pw_vulkan_trace("GPU apiVersion", (int)props.apiVersion);\\n\\t\\tlgc5_pw_vulkan_trace("GPU vendorID", (int)props.vendorID);\\n\\t\\tlgc5_pw_vulkan_trace("GPU deviceID", (int)props.deviceID);\\n\\t\\tlgc5_pw_vulkan_trace("Vulkan 1.2 core level", props.apiVersion >= VK_API_VERSION_1_2);\\n\\t\\tlgc5_pw_vulkan_trace("Vulkan 1.3 core level", props.apiVersion >= VK_API_VERSION_1_3);\\n\\t\tif (props.apiVersion < VK_API_VERSION_1_1)')
-          body = body.replace("if (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))",
+          body = body.replace("if (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, flags))",
                               'lgc5_pw_vulkan_trace("GPU init_device begin", 0);\\n\\t\tif (dev->context.init_device(gpu, VK_NULL_HANDLE, nullptr, 0, CONTEXT_CREATION_ENABLE_VIDEO_FEATURE_ONLY_BIT))')
           body = body.replace("selected_gpu = gpu;",
                               'lgc5_pw_vulkan_trace("GPU init_device succeeded", 1);\\n\\t\t\tselected_gpu = gpu;')
           body = body.replace("if (!selected_gpu)",
                               'lgc5_pw_vulkan_trace("GPU init_device loop ended", selected_gpu ? 1 : 0);\\n\\tif (!selected_gpu)')
-          assert 'GPU init_device begin' in body and 'GPU apiVersion' in body
+          assert 'GPU init_device begin' in body and 'GPU apiVersion' in body, "PyroWave Vulkan diagnostic insertion anchors changed"
           # Convert literal escape sequences inserted by the patch to real C++ line breaks.
           body = body.replace(chr(92) + "n", chr(10)).replace(chr(92) + "t", chr(9))
           code = "#include <stdio.h>" + chr(10) + code[:start] + prefix + body + code[end:]
