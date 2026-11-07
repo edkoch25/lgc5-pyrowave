@@ -202,6 +202,27 @@ static inline bool lgc5_pw_bridge_submit(lgc5_pw_bridge *b, const void *frame, s
     if (!b || !b->decoder) return false;
     static unsigned long pw_submits=0, pw_decoded=0, pw_presented=0;
     ++pw_submits;
+    /* Preserve exact compressed callback bytes BEFORE parsing or GPU decoding.
+     * Four bounded snapshots let us compare early, repeated and later frames.
+     * Files stay inside the test application's writable cache. */
+    if ((pw_submits==1 || pw_submits==2 || pw_submits==120 || pw_submits==240) &&
+        frame && length>=16 && length<=32u*1024u*1024u) {
+        char path[256];
+        int n=snprintf(path,sizeof(path),
+            "/media/developer/apps/usr/palm/applications/com.pyrowave.lgc5.test/cache/pyrowave-input-%04lu.bin",
+            pw_submits);
+        if (n>0 && (size_t)n<sizeof(path)) {
+            FILE *capture=fopen(path,"wb");
+            if (capture) {
+                size_t written=fwrite(frame,1,length,capture);
+                int close_rc=fclose(capture);
+                lgc5_pw_diag("compressed capture frame=%lu path=%s bytes=%zu expected=%zu close_rc=%d",
+                    pw_submits,path,written,length,close_rc);
+            } else {
+                lgc5_pw_diag("compressed capture failed frame=%lu",pw_submits);
+            }
+        }
+    }
     if (!lgc5_pw_ingest_frame(&b->ingress,frame,length,b->width,b->height)) {
         if (pw_submits<=3 || pw_submits%120==0)
             lgc5_pw_diag("ingest failed count=%lu stage=%d rc=%d blocks=%u accepted=%u dropped=%u",
