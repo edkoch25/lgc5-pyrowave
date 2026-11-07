@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 /* Offline PyroWave 8-bit 4:2:0 decoder test.
  * Accepts a complete Vibepollo record-framed frame; never alters TV services.
- * Usage: pyrowave_frame_probe <width> <height> <frame.bin> <libpyrowave.so> [output.yuv]
+ * Usage: pyrowave_frame_probe <width> <height> <frame.bin> <libpyrowave.so> [output.yuv] [auto|fragment|compute]
  */
 #include <dlfcn.h>
 #include "../src/pyrowave_records.h"
@@ -13,7 +13,7 @@
 typedef struct {void *device; int width,height,chroma; bool fragment_path;} DecoderInfo;
 typedef struct {void *data[3]; size_t stride[3], plane_size[3]; int width,height,format;} CpuBuffer;
 int main(int argc, char **argv) {
-    if (argc != 5 && argc != 6) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so [output.yuv]\n",argv[0]);return 2;}
+    if (argc < 5 || argc > 7) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so [output.yuv] [auto|fragment|compute]\n",argv[0]);return 2;}
     int w=atoi(argv[1]),h=atoi(argv[2]);
     if(w<128||h<128||w>4096||h>4096||(w&1)||(h&1)) return 2;
     FILE *fp=fopen(argv[3],"rb");
@@ -54,7 +54,15 @@ int main(int argc, char **argv) {
     void *device=NULL,*decoder=NULL;
     int rc=make_device(&device);
     if(rc||!device){fprintf(stderr,"device rc=%d\n",rc);dlclose(lib);free(data);return 4;}
-    DecoderInfo info={device,w,h,0,fragment(device)};
+    bool preferred_fragment=fragment(device);
+    bool selected_fragment=preferred_fragment;
+    if(argc==7){
+        if(strcmp(argv[6],"fragment")==0) selected_fragment=true;
+        else if(strcmp(argv[6],"compute")==0) selected_fragment=false;
+        else if(strcmp(argv[6],"auto")!=0){fprintf(stderr,"invalid decoder path: %s\n",argv[6]);drop_device(device);dlclose(lib);free(data);return 2;}
+    }
+    fprintf(stderr,"Decoder path: preferred=%s selected=%s\n",preferred_fragment?"fragment":"compute",selected_fragment?"fragment":"compute");
+    DecoderInfo info={device,w,h,0,selected_fragment};
     rc=make_decoder(&info,&decoder);
     if(rc||!decoder){fprintf(stderr,"decoder rc=%d\n",rc);drop_device(device);dlclose(lib);free(data);return 5;}
     clear(decoder);
@@ -78,7 +86,7 @@ int main(int argc, char **argv) {
             rc=decode(decoder,&output);
             printf("PyroWave replay: rc=%d packets=%u blocks=%u %dx%d fragment=%d\\n",
                    rc,packets,records.blocks,w,h,info.fragment_path);
-            if(rc==0 && argc==6){
+            if(rc==0 && argc>=6){
                 FILE *out=fopen(argv[5],"wb");
                 if(!out){perror("output");rc=-4;}
                 else {

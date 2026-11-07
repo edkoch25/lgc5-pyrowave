@@ -30,6 +30,7 @@ jobs:
           /tmp/pyrowave_records_test
           cc -std=c11 -O2 -Wall -Wextra -Werror tests/pyrowave_ingest_test.c -o /tmp/pyrowave_ingest_test
           /tmp/pyrowave_ingest_test
+          cc -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only tests/pyrowave_frame_probe.c
 
       - name: Fetch pinned PyroWave and Granite
         shell: bash
