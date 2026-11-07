@@ -1,8 +1,9 @@
 /* Offline PyroWave 8-bit 4:2:0 decoder test.
  * Accepts a complete Vibepollo record-framed frame; never alters TV services.
- * Usage: pyrowave_frame_probe <width> <height> <frame.bin> <libpyrowave.so>
+ * Usage: pyrowave_frame_probe <width> <height> <frame.bin> <libpyrowave.so> [output.yuv]
  */
 #include <dlfcn.h>
+#include "../src/pyrowave_records.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -10,11 +11,8 @@
 #include <string.h>
 typedef struct {void *device; int width,height,chroma; bool fragment_path;} DecoderInfo;
 typedef struct {void *data[3]; size_t stride[3], plane_size[3]; int width,height,format;} CpuBuffer;
-static uint32_t le32(const unsigned char *p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1]<<8) | ((uint32_t)p[2]<<16) | ((uint32_t)p[3]<<24);
-}
 int main(int argc, char **argv) {
-    if (argc != 5) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so\n",argv[0]);return 2;}
+    if (argc != 5 && argc != 6) {fprintf(stderr,"usage: %s width height frame.bin libpyrowave.so [output.yuv]\n",argv[0]);return 2;}
     int w=atoi(argv[1]),h=atoi(argv[2]);
     if(w<128||h<128||w>4096||h>4096||(w&1)||(h&1)) return 2;
     FILE *fp=fopen(argv[3],"rb");
@@ -40,6 +38,18 @@ int main(int argc, char **argv) {
     if(!make_device||!drop_device||!make_decoder||!drop_decoder||!clear||!push||!ready||!decode||!fragment){
         fprintf(stderr,"missing PyroWave API\n");dlclose(lib);free(data);return 3;
     }
+    /* The webOS Mali ICD does not expose the standard Vulkan loader symbol.
+     * Initialize the same explicit loader path used by the test application. */
+    void *mali=dlopen("/usr/lib/libmali.so",RTLD_NOW|RTLD_LOCAL);
+    int (*init_loader)(void*)=dlsym(lib,"pyrowave_lgc5_init_vulkan_loader");
+    if(mali && init_loader) {
+        void *icd=dlsym(mali,"vk_icdGetInstanceProcAddr");
+        if(!icd || !init_loader(icd)) {
+            fprintf(stderr,"Mali Vulkan ICD initialization failed\\n");
+            dlclose(lib);free(data);return 4;
+        }
+    }
+    setenv("PYROWAVE_PRECISION","2",1);
     void *device=NULL,*decoder=NULL;
     int rc=make_device(&device);
     if(rc||!device){fprintf(stderr,"device rc=%d\n",rc);dlclose(lib);free(data);return 4;}
@@ -47,50 +57,41 @@ int main(int argc, char **argv) {
     rc=make_decoder(&info,&decoder);
     if(rc||!decoder){fprintf(stderr,"decoder rc=%d\n",rc);drop_device(device);dlclose(lib);free(data);return 5;}
     clear(decoder);
-    size_t at=8;
-    unsigned blocks=0;
-    bool valid=true;
-    /* The first 8 bytes must be the extended sequence header. */
-    uint32_t head=le32(data),seq=le32(data+4);
-    if(!(head&0x80000000u)||((head&0x3fff)+1)!=(uint32_t)w||
-       (((head>>14)&0x3fff)+1)!=(uint32_t)h||((seq>>24)&3)!=0||((seq>>26)&1)!=0)
-        valid=false;
-    /* The sequence header must be prepended to the first block packet. */
-    while(valid&&at<(size_t)n) {
-        if((size_t)n-at<8){valid=false;break;}
-        uint32_t a=le32(data+at),b=le32(data+at+4);
-        if(a==0xffffffffu){
-            size_t pad=(size_t)b*4+8;
-            if(pad>(size_t)n-at){valid=false;break;}
-            at+=pad;
-            continue;
-        }
-        if(a&0x80000000u){valid=false;break;}
-        size_t bytes=(size_t)((a>>16)&0xfffu)*4;
-        if(bytes<8||bytes>(size_t)n-at||((a>>28)&7)!=((head>>28)&7)){valid=false;break;}
-        if(blocks==0){
-            unsigned char *first=malloc(bytes+8);
-            if(!first){valid=false;break;}
-            memcpy(first,data,8);
-            memcpy(first+8,data+at,bytes);
-            rc=push(decoder,first,bytes+8);
-            free(first);
-        }else rc=push(decoder,data+at,bytes);
-        if(rc){fprintf(stderr,"push rc=%d block=%u\n",rc,blocks);valid=false;break;}
-        blocks++;at+=bytes;
+    lgc5_pw_records records;
+    bool valid=lgc5_pw_records_init(&records,data,(size_t)n,(unsigned)w,(unsigned)h);
+    const uint8_t *record=NULL;
+    size_t record_len=0;
+    int state=0;
+    unsigned packets=0;
+    while(valid && (state=lgc5_pw_records_next(&records,&record,&record_len))==1) {
+        rc=push(decoder,record,record_len);
+        if(rc){fprintf(stderr,"push rc=%d packet=%u\\n",rc,packets);valid=false;break;}
+        packets++;
     }
-    if(valid && blocks>0 && ready(decoder,false)){
+    if(state!=0)valid=false;
+    if(valid && ready(decoder,false)){
         size_t y=(size_t)w*h,c=y/4;
-        unsigned char *planes=malloc(y+2*c);
+        unsigned char *planes=calloc(1,y+2*c);
         if(planes){
             CpuBuffer output={{planes,planes+y,planes+y+c},{(size_t)w,(size_t)w/2,(size_t)w/2},{y,c,c},w,h,1};
             rc=decode(decoder,&output);
-            printf("PyroWave CPU-output decode: rc=%d blocks=%u %dx%d fragment=%d\n",rc,blocks,w,h,info.fragment_path);
+            printf("PyroWave replay: rc=%d packets=%u blocks=%u %dx%d fragment=%d\\n",
+                   rc,packets,records.blocks,w,h,info.fragment_path);
+            if(rc==0 && argc==6){
+                FILE *out=fopen(argv[5],"wb");
+                if(!out){perror("output");rc=-4;}
+                else {
+                    size_t wrote=fwrite(planes,1,y+2*c,out);
+                    if(fclose(out)!=0 || wrote!=y+2*c){fprintf(stderr,"output write failed\\n");rc=-5;}
+                    else printf("Saved decoded YUV420P: %s (%zu bytes)\\n",argv[5],wrote);
+                }
+            }
             free(planes);
         }else rc=-3;
     }else{
-        fprintf(stderr,"Invalid or incomplete PyroWave record frame (blocks=%u)\n",blocks);rc=-2;
+        fprintf(stderr,"Invalid or incomplete PyroWave record frame (blocks=%u packets=%u)\\n",
+                records.blocks,packets);rc=-2;
     }
-    drop_decoder(decoder);drop_device(device);dlclose(lib);free(data);
+    drop_decoder(decoder);drop_device(device);if(mali)dlclose(mali);dlclose(lib);free(data);
     return rc==0?0:6;
 }
